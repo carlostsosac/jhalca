@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Configuración{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <h4 class="mb-3">Configuración del Sistema</h4>
+
+    <ul class="nav nav-tabs" id="config-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="db-config-tab" data-bs-toggle="tab" data-bs-target="#db-config-pane" type="button" role="tab">Base de Datos</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" href="{{ url_for('datos_empresa') }}">Datos de la Empresa</a>
+        </li>
+    </ul>
+
+    <div class="tab-content pt-3">
+        <div class="tab-pane fade show active" id="db-config-pane" role="tabpanel">
+            <p>Use este formulario para crear las tablas en la base de datos. La operación es segura: si las tablas ya existen, no se modificarán.</p>
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="db-init-form" method="post" action="{{ url_for('crear_tablas') }}">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="driver" class="form-label">Driver ODBC</label>
+                                        <input type="text" class="form-control" id="driver" name="driver" value="{{ driver }}" readonly>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="server" class="form-label">Servidor</label>
+                                        <input type="text" class="form-control" id="server" name="server" value="{{ server }}" readonly>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="database" class="form-label">Base de datos</label>
+                                        <input type="text" class="form-control" id="database" name="database" value="{{ database }}" readonly>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="username" class="form-label">Usuario</label>
+                                        <input type="text" class="form-control" id="username" name="username" value="{{ username }}" readonly>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="password" class="form-label">Contraseña</label>
+                                        <input type="password" class="form-control" id="password" name="password" value="{{ password }}" readonly>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-database-add me-2"></i>Crear/Verificar Tablas
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card bg-light-subtle">
+                        <div class="card-body">
+                            <h6>Notas</h6>
+                            <ul>
+                                <li>Esta acción crea todas las tablas necesarias para el sistema.</li>
+                                <li>También inserta datos iniciales como las secuencias de numeración.</li>
+                                <li>Use credenciales con permisos para crear objetos de base de datos.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

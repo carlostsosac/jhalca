@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+
+  <ul class="nav nav-tabs" id="tabs-cobros" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario de Cobro</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar Cobros</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button">Reportes</button>
+    </li>
+  </ul>
+
+  <div class="tab-content pt-3">
+    <div class="tab-pane fade show active" id="tab-form">
+      <form method="post" id="cobro-form">
+        <input type="hidden" name="id" id="cobro-id">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Código</label>
+            <input class="form-control" name="codigo" id="cobro-codigo" placeholder="(auto)" readonly>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha</label>
+            <input type="date" class="form-control" id="fecha" name="fecha" value="{{ current_date.strftime('%Y-%m-%d') }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Forma de Cobro</label>
+            <select class="form-select" name="forma_pago" id="forma-pago">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+              <option value="Tarjeta de Crédito/Débito">Tarjeta de Crédito/Débito</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Estado</label>
+            <select class="form-select" name="estado" id="cobro-estado">
+              <option value="activo">Activo</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Cliente</label>
+            <div class="input-group">
+              <input class="form-control" id="cliente-buscar" placeholder="Escriba para buscar cliente (>=3 letras)...">
+            </div>
+            <input type="hidden" name="cliente_id" id="cliente-id">
+            <div class="form-text" id="cliente-seleccion"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Comentario</label>
+            <textarea class="form-control" name="comentario" id="cobro-comentario" rows="1"></textarea>
+          </div>
+        </div>
+
+        <hr />
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Facturas a Pagar</h5>
+          <div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="agregar-linea">Buscar Facturas</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="detalle-tabla">
+            <thead>
+              <tr>
+                <th>Factura</th>
+                <th class="text-end">Balance Actual</th>
+                <th style="width: 10rem" class="text-end">Monto a Aplicar</th>
+                <th style="width: 10rem" class="text-end">Descuento</th>
+                <th style="width: 10rem" class="text-end">Cargo</th>
+                <th style="width: 5rem">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="detalle-body"></tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-end mt-2">
+          <div class="me-4"><strong>Total Descuentos:</strong> <span id="descuentos-span">0.00</span></div>
+          <div class="me-4"><strong>Total Cargos:</strong> <span id="cargos-span">0.00</span></div>
+          <div><strong>Total Aplicado:</strong> <span id="total-span">0.00</span></div>
+        </div>
+
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-success">Guardar Cobro</button>
+          <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="tab-pane fade" id="tab-buscar">
+      <!-- Contenido para buscar cobros (se puede implementar después) -->
+      <p>Búsqueda de recibos de cobro.</p>
+    </div>
+
+    <div class="tab-pane fade" id="tab-reportes">
+      <p>Reportes relacionados a Cuentas por Cobrar:</p>
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-primary" id="btn-reporte-pendientes">Facturas Pendientes por Cliente</button>
+        <button class="btn btn-outline-success" id="btn-reporte-cobros-fecha">Reporte de Cobros por Fecha</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de búsqueda de facturas pendientes -->
+<div class="modal fade" id="modalFacturas" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buscar Facturas Pendientes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="facturasResultados">Cargando facturas...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de clientes -->
+<div class="modal fade" id="modalClientes" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buscar Cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-2">
+          <input type="text" class="form-control" id="qCliente" placeholder="Buscar por nombre (>=3 letras)" />
+          <button class="btn btn-outline-secondary" id="btnBuscarClienteModal">Buscar</button>
+        </div>
+        <div id="clienteResultados"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de descarga de PDF -->
+<div class="modal fade" id="pdfDownloadModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">PDF Generado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="pdfModalMessage"></p>
+        <a id="pdfDownloadLink" href="#" class="btn btn-primary" download>Descargar PDF</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reporte Facturas Pendientes -->
+<div class="modal fade" id="modalReporteFacturasPendientes" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reporte de Facturas Pendientes por Cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="reporte-pendientes-body">
+        <!-- Contenido se inyecta con JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reporte Cobros por Fecha -->
+<div class="modal fade" id="modalReporteCobrosFecha" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reporte de Cobros por Fecha</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label for="rep-cobros-desde" class="form-label">Desde</label>
+            <input type="date" id="rep-cobros-desde" class="form-control" />
+          </div>
+          <div class="col-sm-6">
+            <label for="rep-cobros-hasta" class="form-label">Hasta</label>
+            <input type="date" id="rep-cobros-hasta" class="form-control" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-generar-cobros-pdf">Generar PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const $detalleBody = document.getElementById('detalle-body');
+  const $agregarLineaBtn = document.getElementById('agregar-linea');
+  const $totalSpan = document.getElementById('total-span');
+  const $descuentosSpan = document.getElementById('descuentos-span');
+  const $cargosSpan = document.getElementById('cargos-span');
+  const $clienteId = document.getElementById('cliente-id');
+  const $clienteSeleccion = document.getElementById('cliente-seleccion');
+  const $clienteBuscarInput = document.getElementById('cliente-buscar');
+
+  const modalFacturas = new bootstrap.Modal(document.getElementById('modalFacturas'));
+  const modalClientes = new bootstrap.Modal(document.getElementById('modalClientes'));
+
+  function fmt(n) {
+    return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function recalcular() {
+    let totalAplicado = 0, totalDescuentos = 0, totalCargos = 0;
+    $detalleBody.querySelectorAll('tr').forEach(tr => {
+      totalAplicado += parseFloat(tr.querySelector('input[name="aplicado[]"]').value || 0);
+      totalDescuentos += parseFloat(tr.querySelector('input[name="descuento[]"]').value || 0);
+      totalCargos += parseFloat(tr.querySelector('input[name="cargo[]"]').value || 0);
+    });
+    $totalSpan.textContent = fmt(totalAplicado);
+    $descuentosSpan.textContent = fmt(totalDescuentos);
+    $cargosSpan.textContent = fmt(totalCargos);
+  }
+
+  function addFacturaRow(factura) {
+    // Evitar agregar duplicados
+    if (document.querySelector(`input[name="factura_id[]"][value="${factura.id}"]`)) {
+      alert('Esa factura ya está en el detalle.');
+      return;
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <input type="hidden" name="factura_id[]" value="${factura.id}" />
+        ${factura.codigo} (${factura.fecha})
+      </td>
+      <td class="text-end">${fmt(factura.balance)}</td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="aplicado[]" value="${factura.balance}" /></td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="descuento[]" value="0" /></td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="cargo[]" value="0" /></td>
+      <td><button type="button" class="btn btn-outline-danger btn-sm btnEliminar">X</button></td>
+    `;
+    $detalleBody.appendChild(tr);
+    tr.querySelector('.btnEliminar').addEventListener('click', () => { tr.remove(); recalcular(); });
+    tr.querySelectorAll('input').forEach(input => input.addEventListener('input', recalcular));
+    recalcular();
+  }
+
+  $agregarLineaBtn.addEventListener('click', async () => {
+    const cid = $clienteId.value;
+    if (!cid) {
+      alert('Por favor, seleccione un cliente primero.');
+      return;
+    }
+    const $resultados = document.getElementById('facturasResultados');
+    $resultados.innerHTML = 'Cargando...';
+    modalFacturas.show();
+
+    try {
+      const resp = await fetch(`/api/facturas_por_cobrar?cliente_id=${cid}`);
+      const facturas = await resp.json();
+      if (facturas.length === 0) {
+        $resultados.innerHTML = '<div class="alert alert-info">Este cliente no tiene facturas pendientes.</div>';
+        return;
+      }
+      const rows = facturas.map(f => `
+        <tr>
+          <td>${f.codigo}</td>
+          <td>${f.fecha}</td>
+          <td class="text-end">${fmt(f.total)}</td>
+          <td class="text-end">${fmt(f.balance)}</td>
+          <td><button type="button" class="btn btn-sm btn-primary btn-seleccionar-factura" data-factura='${JSON.stringify(f)}'>Aplicar</button></td>
+        </tr>
+      `).join('');
+      $resultados.innerHTML = `
+        <table class="table table-sm">
+          <thead><tr><th>Código</th><th>Fecha</th><th class="text-end">Total</th><th class="text-end">Balance</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      $resultados.querySelectorAll('.btn-seleccionar-factura').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const facturaData = JSON.parse(btn.dataset.factura);
+          addFacturaRow(facturaData);
+          modalFacturas.hide();
+        });
+      });
+    } catch (err) {
+      $resultados.innerHTML = '<div class="alert alert-danger">Error al cargar facturas.</div>';
+    }
+  });
+
+  // --- Búsqueda de Clientes (reutilizado de facturas.html) ---
+  const $qCliente = document.getElementById('qCliente');
+  const $btnBuscarClienteModal = document.getElementById('btnBuscarClienteModal');
+  const $clienteResultados = document.getElementById('clienteResultados');
+
+  let clienteSearchDebounce;
+  $clienteBuscarInput.addEventListener('input', () => {
+      const q = ($clienteBuscarInput.value || '').trim();
+      if (clienteSearchDebounce) clearTimeout(clienteSearchDebounce);
+      clienteSearchDebounce = setTimeout(() => {
+        if(q.length >= 3){
+          $qCliente.value = q;
+          $clienteResultados.innerHTML = '';
+          modalClientes.show();
+          buscarClientes();
+        }
+      }, 300); // Espera 300ms después de teclear
+    });
+
+
+
+  async function buscarClientes() {
+    const q = ($qCliente.value || '').trim();
+    if (q.length < 3) {
+      $clienteResultados.innerHTML = '<div class="alert alert-info">Escriba al menos 3 letras.</div>';
+      return;
+    }
+    const resp = await fetch(`/api/clientes?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    const rows = data.map(c => `
+      <tr>
+        <td>${c.nombre || ''}</td>
+        <td>${c.rnc || ''}</td>
+        <td><button type="button" class="btn btn-sm btn-primary" data-cid="${c.id}" data-nombre="${c.nombre || ''}" data-rnc="${c.rnc || ''}">Seleccionar</button></td>
+      </tr>`).join('');
+    $clienteResultados.innerHTML = `<table class="table table-sm"><thead><tr><th>Nombre</th><th>RNC</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    
+    $clienteResultados.querySelectorAll('button[data-cid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        // Si se cambia de cliente, limpiar el detalle
+        if ($clienteId.value !== btn.dataset.cid) {
+          $detalleBody.innerHTML = '';
+          recalcular();
+        }
+        $clienteId.value = btn.dataset.cid;
+        $clienteSeleccion.textContent = `${btn.dataset.nombre} (RNC: ${btn.dataset.rnc})`;
+        $clienteBuscarInput.value = btn.dataset.nombre;
+        modalClientes.hide();
+      });
+    });
+  }
+  $btnBuscarClienteModal.addEventListener('click', buscarClientes);
+  $qCliente.addEventListener('input', () => { if ($qCliente.value.trim().length >= 3) buscarClientes(); });
+
+  // Limpiar formulario
+  document.getElementById('limpiar-form').addEventListener('click', function() {
+    document.getElementById('cobro-form').reset();
+    $detalleBody.innerHTML = '';
+    $clienteId.value = '';
+    $clienteSeleccion.textContent = '';
+    recalcular();
+  });
+
+  // Modal de PDF
+  const flashMessages = document.querySelectorAll('.alert.alert-success');
+  let pdfFilename = null;
+  flashMessages.forEach(msg => {
+    const match = msg.textContent.match(/PDF generado: (cobro_.*\.pdf)/);
+    if (match && match[1]) {
+      pdfFilename = match[1];
+      msg.style.display = 'none';
+    }
+  });
+
+  if (pdfFilename) {
+    const pdfModal = new bootstrap.Modal(document.getElementById('pdfDownloadModal'));
+    const link = document.getElementById('pdfDownloadLink');
+    link.href = `/static/pdfs/${pdfFilename}`;
+    link.download = pdfFilename;
+    document.getElementById('pdfModalMessage').textContent = `Cobro guardado. ¿Deseas descargar el recibo ${pdfFilename}?`;
+    pdfModal.show();
+  }
+
+  // --- Reporte de Facturas Pendientes ---
+  const modalReportePendientes = new bootstrap.Modal(document.getElementById('modalReporteFacturasPendientes'));
+  const btnReportePendientes = document.getElementById('btn-reporte-pendientes');
+  const reporteBody = document.getElementById('reporte-pendientes-body');
+
+  btnReportePendientes?.addEventListener('click', async function() {
+    reporteBody.innerHTML = 'Cargando reporte...';
+    modalReportePendientes.show();
+    try {
+      const res = await fetch('/api/reportes/facturas_pendientes_agrupadas');
+      if (!res.ok) throw new Error('Error al cargar el reporte');
+      const clientes = await res.json();
+
+      if (clientes.length === 0) {
+        reporteBody.innerHTML = '<div class="alert alert-info">No hay facturas pendientes de cobro.</div>';
+        return;
+      }
+
+      let html = '';
+      for (const cli of clientes) {
+        html += `<div class="mb-4">
+          <h5>${cli.nombre} <small class="text-muted">(RNC: ${cli.rnc || 'N/A'})</small></h5>
+          <table class="table table-sm table-bordered">
+            <thead class="table-light"><tr><th>Código Factura</th><th>Fecha</th><th class="text-end">Balance Pendiente</th></tr></thead>
+            <tbody>`;
+        for (const factura of cli.facturas) {
+          html += `<tr><td>${factura.codigo}</td><td>${factura.fecha}</td><td class="text-end">${fmt(factura.balance)}</td></tr>`;
+        }
+        html += `</tbody>
+          <tfoot><tr><td colspan="2" class="text-end"><strong>Total Cliente:</strong></td><td class="text-end"><strong>${fmt(cli.total_balance)}</strong></td></tr></tfoot>
+          </table></div>`;
+      }
+      reporteBody.innerHTML = html;
+    } catch (err) {
+      reporteBody.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    }
+  });
+
+  // --- Reporte de Cobros por Fecha ---
+  const modalReporteCobros = new bootstrap.Modal(document.getElementById('modalReporteCobrosFecha'));
+  const btnAbrirModalCobros = document.getElementById('btn-reporte-cobros-fecha');
+  const btnGenerarPdfCobros = document.getElementById('btn-generar-cobros-pdf');
+  const $desdeCobros = document.getElementById('rep-cobros-desde');
+  const $hastaCobros = document.getElementById('rep-cobros-hasta');
+
+  btnAbrirModalCobros?.addEventListener('click', function() {
+    const today = new Date().toISOString().split('T')[0];
+    $desdeCobros.value = today;
+    $hastaCobros.value = today;
+    modalReporteCobros.show();
+  });
+
+  btnGenerarPdfCobros?.addEventListener('click', function() {
+    const desde = $desdeCobros.value;
+    const hasta = $hastaCobros.value;
+    if (!desde || !hasta) {
+      alert('Por favor, seleccione un rango de fechas.');
+      return;
+    }
+    const params = new URLSearchParams({ desde, hasta });
+    const url = `/cobros/reporte_pdf?${params.toString()}`;
+    window.open(url, '_blank');
+    modalReporteCobros.hide();
+  });
+});
+</script>
+{% endblock %}

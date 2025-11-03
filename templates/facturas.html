@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+
+  <ul class="nav nav-tabs" id="tabs-{{ form_name }}" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar / Editar</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button" role="tab">Reportes</button>
+    </li>
+  </ul>
+
+  <div class="tab-content pt-3">
+    <div class="tab-pane fade show active" id="tab-form">
+      <form method="post" id="factura-form">
+        <input type="hidden" name="id" id="factura-id">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Código</label>
+            <input class="form-control" name="codigo" id="factura-codigo" placeholder="(auto)" readonly>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha</label>
+            <div class="form-group">
+                           
+                            <input type="date" class="form-control" id="fecha" name="fecha" value="{{ current_date.strftime('%Y-%m-%d') }}" required>
+                        </div>
+
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Referencia</label>
+            <input class="form-control" name="referencia" id="factura-referencia">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Condición</label>
+            <select class="form-select" name="condicion" id="factura-condicion">
+              <option value="contado">Contado</option>
+              <option value="credito">Crédito</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Cliente</label>
+            <div class="input-group">
+              <input class="form-control" id="cliente-buscar" placeholder="Escriba para buscar cliente (>=3 letras)...">
+              <button class="btn btn-outline-secondary" type="button" id="btnBuscarCliente">Buscar</button>
+            </div>
+            <input type="hidden" name="cliente_id" id="cliente-id">
+            <div class="form-text" id="cliente-seleccion"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Comentario</label>
+            <textarea class="form-control" name="comentario" id="factura-comentario" rows="2"></textarea>
+          </div>
+        </div>
+
+        <hr />
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Detalle</h5>
+          <div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="agregar-linea">Agregar línea</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="detalle-tabla">
+            <thead>
+              <tr>
+                <th style="width: 7rem">Código</th>
+                <th>Descripción</th>
+                <th style="width: 7rem" class="text-end">Existencia</th>
+                <th style="width: 7rem" class="text-end">Cantidad</th>
+                <th style="width: 7rem" class="text-end">Precio</th>
+                <th style="width: 7rem" class="text-end">Costo</th>
+                <th style="width: 9rem" class="text-end">Importe</th>
+                <th style="width: 9rem">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="detalle-body"></tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-end mt-2">
+          <div class="me-4"><strong>Subtotal:</strong> <span id="subtotal-span">0.00</span></div>
+          <div class="me-4"><strong>ITBIS (18%):</strong> <span id="itbis-span">0.00</span></div>
+          <div class="me-4"><strong>Descuento:</strong> <input type="number" step="0.01" class="form-control form-control-sm d-inline-block w-auto" name="descuento" id="factura-descuento" value="0"></div>
+          <div><strong>Total:</strong> <span id="total-span">0.00</span></div>
+        </div>
+
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-success">Guardar</button>
+          <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="tab-pane fade" id="tab-buscar">
+      <div class="row g-2 mb-2">
+        <div class="col-md-6">
+          <input type="text" class="form-control" id="buscar-input" placeholder="Buscar por código o comentario" />
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-primary" id="buscar-btn">Buscar</button>
+        </div>
+      </div>
+      <div id="buscar-resultados"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de mercancías -->
+<div class="modal fade" id="modalMercancias" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buscar mercancía</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-2">
+          <input type="text" class="form-control" id="qMerc" placeholder="Buscar por nombre" />
+          <button class="btn btn-outline-secondary" id="btnBuscarMerc">Buscar</button>
+        </div>
+        <div id="mercResultados"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de clientes -->
+<div class="modal fade" id="modalClientes" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buscar Cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-2">
+          <input type="text" class="form-control" id="qCliente" placeholder="Buscar por nombre (>=3 letras)" />
+          <button class="btn btn-outline-secondary" id="btnBuscarClienteModal">Buscar</button>
+        </div>
+        <div id="clienteResultados"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const $detalleBody = document.getElementById('detalle-body');
+    const $agregarLineaBtn = document.getElementById('agregar-linea');
+    const $subtotalSpan = document.getElementById('subtotal-span');
+    const $itbisSpan = document.getElementById('itbis-span');
+    const $totalSpan = document.getElementById('total-span');
+    const $facturaDescuento = document.getElementById('factura-descuento');
+    const $facturaForm = document.getElementById('factura-form');
+    const $limpiarFormBtn = document.getElementById('limpiar-form');
+
+    // Modales
+    const $modalMercanciasEl = document.getElementById('modalMercancias');
+    let modalMercancias = null;
+    function showMercanciasModal() {
+      if (!window.bootstrap) {
+        window.addEventListener('load', showMercanciasModal, { once: true });
+        return;
+      }
+      if (!modalMercancias) modalMercancias = new bootstrap.Modal($modalMercanciasEl);
+      modalMercancias.show();
+    }
+    function hideMercanciasModal() { if (modalMercancias) modalMercancias.hide(); }
+
+    const $modalClientesEl = document.getElementById('modalClientes');
+    let modalClientes = null;
+    function showClientesModal() {
+      if (!window.bootstrap) {
+        window.addEventListener('load', showClientesModal, { once: true });
+        return;
+      }
+      if (!modalClientes) modalClientes = new bootstrap.Modal($modalClientesEl);
+      modalClientes.show();
+    }
+    function hideClientesModal() { if (modalClientes) modalClientes.hide(); }
+
+    // Formato de números
+    function fmt(n) {
+      const v = Number(n || 0);
+      return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Recalcular totales
+    function recalcular() {
+      let subtotal = 0;
+      $detalleBody.querySelectorAll('tr').forEach(tr => {
+        const qty = parseFloat(tr.querySelector('input[name="cantidad[]"]').value || 0);
+        const prc = parseFloat(tr.querySelector('input[name="precio[]"]').value || 0);
+        const imp = qty * prc;
+        tr.querySelector('span[data-role="importe"]').textContent = fmt(imp);
+        subtotal += imp;
+      });
+      const desc = parseFloat($facturaDescuento.value || 0);
+      const base = Math.max(subtotal - desc, 0);
+      const itb = base * 0.18; // Asumiendo 18% de ITBIS
+      const tot = base + itb;
+
+      $subtotalSpan.textContent = fmt(subtotal);
+      $itbisSpan.textContent = fmt(itb);
+      $totalSpan.textContent = fmt(tot);
+    }
+
+    // Agregar línea de detalle
+    function addEmptyRow() {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <input type="hidden" name="mercancia_id[]" />
+          <input type="text" class="form-control form-control-sm" name="merc_codigo" readonly />
+        </td>
+        <td><input type="text" class="form-control form-control-sm" name="merc_nombre" placeholder="Descripción (>=3 letras para buscar)" /></td>
+        <td><input type="text" class="form-control form-control-sm text-end" name="existencia" readonly /></td>
+        <td><input type="number" step="1" class="form-control form-control-sm text-end" name="cantidad[]" value="0" /></td>
+        <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="precio[]" value="0" /></td>
+        <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="costo[]" value="0" /></td>
+        <td><span data-role="importe">0.00</span></td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-primary btnBuscarMercancia">Buscar</button>
+            <button type="button" class="btn btn-outline-danger btnEliminar">Eliminar</button>
+          </div>
+        </td>
+      `;
+      $detalleBody.appendChild(tr);
+      // Event listeners para la nueva fila
+      tr.querySelector('input[name="cantidad[]"]').addEventListener('input', recalcular);
+      tr.querySelector('input[name="precio[]"]').addEventListener('input', recalcular);
+      tr.querySelector('.btnEliminar').addEventListener('click', () => { tr.remove(); recalcular(); });
+      tr.querySelector('.btnBuscarMercancia').addEventListener('click', () => {
+        currentRowIndex = Array.from($detalleBody.querySelectorAll('tr')).indexOf(tr);
+        $qMerc.value = '';
+        $mercResultados.innerHTML = '';
+        showMercanciasModal();
+      });
+      // Búsqueda automática por descripción cuando haya 3+ letras
+      const $descInput = tr.querySelector('input[name="merc_nombre"]');
+      let descDebounce;
+      $descInput.addEventListener('input', () => {
+        const q = ($descInput.value || '').trim();
+        if (descDebounce) clearTimeout(descDebounce);
+        descDebounce = setTimeout(() => {
+          if(q.length >= 3){
+            currentRowIndex = Array.from($detalleBody.querySelectorAll('tr')).indexOf(tr);
+            $qMerc.value = q;
+            $mercResultados.innerHTML = '';
+            showMercanciasModal();
+            buscarMerc();
+          }
+        }, 250);
+      });
+    }
+
+    $agregarLineaBtn.addEventListener('click', addEmptyRow);
+    addEmptyRow(); // Agregar una línea inicial
+
+    // Búsqueda de mercancías (dentro del modal)
+    const $qMerc = document.getElementById('qMerc');
+    const $btnBuscarMerc = document.getElementById('btnBuscarMerc');
+    const $mercResultados = document.getElementById('mercResultados');
+    let currentRowIndex = null; // Para saber qué fila de detalle actualizar
+
+    async function buscarMerc() {
+      const q = ($qMerc.value || '').trim();
+      if (q.length < 3) {
+        $mercResultados.innerHTML = '<div class="alert alert-info">Escriba al menos 3 letras para buscar.</div>';
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/mercancias?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+        const data = await resp.json();
+        const rows = data.map(m => `
+          <tr>
+            <td>${m.codigo || ''}</td>
+            <td>${m.nombre || ''}</td>
+            <td class="text-end">${m.existencia ?? ''}</td>
+            <td class="text-end">${fmt(m.precio)}</td>
+            <td class="text-end">${fmt(m.costo)}</td>
+            <td><button type="button" class="btn btn-sm btn-primary" data-mid="${m.id}" data-codigo="${m.codigo || ''}" data-nombre="${m.nombre || ''}" data-ex="${m.existencia ?? ''}" data-precio="${m.precio ?? 0}" data-costo="${m.costo ?? 0}">Seleccionar</button></td>
+          </tr>
+        `).join('');
+        $mercResultados.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Código</th><th>Nombre</th><th class="text-end">Existencia</th><th class="text-end">Precio</th><th class="text-end">Costo</th><th></th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+        for (const btn of $mercResultados.querySelectorAll('button[data-mid]')) {
+          btn.addEventListener('click', () => {
+            const idx = currentRowIndex;
+            const tr = $detalleBody.querySelectorAll('tr')[idx];
+            if (!tr) return;
+            tr.querySelector('input[name="mercancia_id[]"]').value = btn.getAttribute('data-mid');
+            tr.querySelector('input[name="merc_codigo"]').value = btn.getAttribute('data-codigo');
+            tr.querySelector('input[name="merc_nombre"]').value = btn.getAttribute('data-nombre');
+            tr.querySelector('input[name="existencia"]').value = btn.getAttribute('data-ex');
+            tr.querySelector('input[name="precio[]"]').value = btn.getAttribute('data-precio');
+            tr.querySelector('input[name="costo[]"]').value = btn.getAttribute('data-costo');
+            recalcular();
+            hideMercanciasModal();
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        $mercResultados.innerHTML = '<div class="alert alert-danger">Error al buscar mercancías.</div>';
+      }
+    }
+    $btnBuscarMerc.addEventListener('click', buscarMerc);
+    $qMerc.addEventListener('input', () => {
+      if ($qMerc.value.trim().length >= 3) {
+        buscarMerc();
+      }
+    });
+
+    // Búsqueda de clientes (dentro del modal)
+    const $clienteBuscarInput = document.getElementById('cliente-buscar');
+    const $btnBuscarCliente = document.getElementById('btnBuscarCliente');
+    const $qCliente = document.getElementById('qCliente');
+    const $btnBuscarClienteModal = document.getElementById('btnBuscarClienteModal');
+    const $clienteResultados = document.getElementById('clienteResultados');
+    const $clienteId = document.getElementById('cliente-id');
+    const $clienteSeleccion = document.getElementById('cliente-seleccion');
+    
+    let clienteSearchDebounce;
+    $clienteBuscarInput.addEventListener('input', () => {
+      const q = ($clienteBuscarInput.value || '').trim();
+      if (clienteSearchDebounce) clearTimeout(clienteSearchDebounce);
+      clienteSearchDebounce = setTimeout(() => {
+        if(q.length >= 3){
+          $qCliente.value = q;
+          $clienteResultados.innerHTML = '';
+          showClientesModal();
+          buscarClientes();
+        }
+      }, 250);
+    });
+    
+    $btnBuscarCliente.addEventListener('click', () => {
+      $qCliente.value = $clienteBuscarInput.value;
+      $clienteResultados.innerHTML = '';
+      showClientesModal();
+      if ($qCliente.value.trim().length >= 3) {
+        buscarClientes();
+      }
+    });
+
+    async function buscarClientes() {
+      const q = ($qCliente.value || '').trim();
+      if (q.length < 3) {
+        $clienteResultados.innerHTML = '<div class="alert alert-info">Escriba al menos 3 letras para buscar.</div>';
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/clientes?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+        const data = await resp.json();
+        const rows = data.map(c => `
+          <tr>
+            <td>${c.nombre || ''}</td>
+            <td>${c.rnc || ''}</td>
+            <td>${c.telefono || ''}</td>
+            <td><button type="button" class="btn btn-sm btn-primary" data-cid="${c.id}" data-nombre="${c.nombre || ''}" data-rnc="${c.rnc || ''}">Seleccionar</button></td>
+          </tr>
+        `).join('');
+        $clienteResultados.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Nombre</th><th>RNC</th><th>Teléfono</th><th></th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+        for (const btn of $clienteResultados.querySelectorAll('button[data-cid]')) {
+          btn.addEventListener('click', () => {
+            $clienteId.value = btn.getAttribute('data-cid');
+            $clienteSeleccion.textContent = `${btn.getAttribute('data-nombre')} (RNC: ${btn.getAttribute('data-rnc')})`;
+            $clienteBuscarInput.value = btn.getAttribute('data-nombre'); // Actualizar el input principal
+            hideClientesModal();
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        $clienteResultados.innerHTML = '<div class="alert alert-danger">Error al buscar clientes.</div>';
+      }
+    }
+    $btnBuscarClienteModal.addEventListener('click', buscarClientes);
+    $qCliente.addEventListener('input', () => {
+      if ($qCliente.value.trim().length >= 3) {
+        buscarClientes();
+      }
+    });
+
+    // Event listener para el descuento
+    $facturaDescuento.addEventListener('input', recalcular);
+
+    // Limpiar formulario
+    $limpiarFormBtn.addEventListener('click', function() {
+      $facturaForm.reset();
+      document.getElementById('factura-id').value = '';
+      $detalleBody.innerHTML = '';
+      $clienteId.value = '';
+      $clienteSeleccion.textContent = '';
+      $clienteBuscarInput.value = '';
+      addEmptyRow(); // Añadir una línea vacía después de limpiar
+      recalcular();
+    });
+
+    // Cargar factura para edición
+    const buscarBtn = document.getElementById('buscar-btn');
+    const buscarInput = document.getElementById('buscar-input');
+    const resultadosDiv = document.getElementById('buscar-resultados');
+
+    buscarBtn?.addEventListener('click', async function(e){
+      e.preventDefault();
+      const q = (buscarInput.value || '').trim();
+      resultadosDiv.innerHTML = '';
+      try{
+        const res = await fetch(`/api/facturas?q=${encodeURIComponent(q)}`);
+        if(!res.ok) throw new Error('Error al buscar');
+        const data = await res.json();
+        if(data.length === 0){ resultadosDiv.innerHTML = '<div class="alert alert-info">No hay resultados.</div>'; return; }
+        let html = '<div class="list-group">';
+        for(const f of data){
+          html += `<div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <div><strong>${f.codigo || ''}</strong> — ${f.fecha || ''}</div>
+              <div class="small text-muted">Cliente: ${f.cliente_nombre || ''} • Subtotal: ${fmt(f.subtotal)} • Total: ${fmt(f.total)}</div>
+            </div>
+            <button class="btn btn-sm btn-primary" data-action="editar" data-id="${f.id}">Editar</button>
+          </div>`;
+        }
+        html += '</div>';
+        resultadosDiv.innerHTML = html;
+      }catch(err){ resultadosDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`; }
+    });
+
+    resultadosDiv?.addEventListener('click', async function(e){
+      const btn = e.target.closest('button[data-action="editar"]');
+      if(!btn) return;
+      const id = btn.getAttribute('data-id');
+      try{
+        const res = await fetch(`/api/facturas/${id}`);
+        if(!res.ok) throw new Error('No se pudo cargar factura');
+        const f = await res.json();
+        // llenar encabezado
+        document.getElementById('factura-id').value = f.id || '';
+        document.getElementById('factura-codigo').value = f.codigo || '';
+        document.getElementById('factura-fecha').value = f.fecha || '';
+        document.getElementById('factura-referencia').value = f.referencia || '';
+        document.getElementById('factura-condicion').value = f.condicion || '';
+        document.getElementById('cliente-id').value = f.cliente_id || '';
+        document.getElementById('cliente-seleccion').textContent = `${f.cliente_nombre || ''} (RNC: ${f.cliente_rnc || ''})`;
+        document.getElementById('cliente-buscar').value = f.cliente_nombre || ''; // Actualizar el input de búsqueda de cliente
+        document.getElementById('factura-comentario').value = f.comentario || '';
+        document.getElementById('factura-descuento').value = fmt(f.descuento || 0);
+        // llenar detalle
+        $detalleBody.innerHTML = '';
+        for(const d of (f.detalles || [])){
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>
+              <input type="hidden" name="mercancia_id[]" value="${d.mercancia_id || ''}" />
+              <input type="text" class="form-control form-control-sm" name="merc_codigo" readonly value="${d.mercancia_codigo || ''}" />
+            </td>
+            <td><input type="text" class="form-control form-control-sm" name="merc_nombre" placeholder="Descripción (>=3 letras para buscar)" value="${d.mercancia_nombre || ''}" /></td>
+            <td><input type="text" class="form-control form-control-sm text-end" name="existencia" readonly value="${d.existencia || 0}" /></td>
+            <td><input type="number" step="1" class="form-control form-control-sm text-end" name="cantidad[]" value="${d.cantidad || 0}" /></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="precio[]" value="${fmt(d.precio || 0)}" /></td>
+            <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="costo[]" value="${fmt(d.costo || 0)}" /></td>
+            <td><span data-role="importe">${fmt(d.importe || 0)}</span></td>
+            <td>
+              <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-primary btnBuscarMercancia">Buscar</button>
+                <button type="button" class="btn btn-outline-danger btnEliminar">Eliminar</button>
+              </div>
+            </td>
+          `;
+          $detalleBody.appendChild(tr);
+          tr.querySelector('input[name="cantidad[]"]').addEventListener('input', recalcular);
+          tr.querySelector('input[name="precio[]"]').addEventListener('input', recalcular);
+          tr.querySelector('.btnEliminar').addEventListener('click', () => { tr.remove(); recalcular(); });
+          tr.querySelector('.btnBuscarMercancia').addEventListener('click', () => {
+            currentRowIndex = Array.from($detalleBody.querySelectorAll('tr')).indexOf(tr);
+            $qMerc.value = tr.querySelector('input[name="merc_nombre"]').value;
+            $mercResultados.innerHTML = '';
+            showMercanciasModal();
+            if ($qMerc.value.trim().length >= 3) {
+              buscarMerc();
+            }
+          });
+          const $descInput = tr.querySelector('input[name="merc_nombre"]');
+          let descDebounce;
+          $descInput.addEventListener('input', () => {
+            const q = ($descInput.value || '').trim();
+            if (descDebounce) clearTimeout(descDebounce);
+            descDebounce = setTimeout(() => {
+              if(q.length >= 3){
+                currentRowIndex = Array.from($detalleBody.querySelectorAll('tr')).indexOf(tr);
+                $qMerc.value = q;
+                $mercResultados.innerHTML = '';
+                showMercanciasModal();
+                buscarMerc();
+              }
+            }, 250);
+          });
+        }
+        recalcular();
+        const tabTrigger = document.getElementById('form-tab');
+        if(tabTrigger && window.bootstrap){ new bootstrap.Tab(tabTrigger).show(); }
+      }catch(err){ alert(err.message); }
+    });
+
+    // Manejo del submit del formulario
+    $facturaForm.addEventListener('submit', function(e) {
+      // Aquí puedes añadir validaciones adicionales antes de enviar
+      recalcular(); // Asegurarse de que los totales estén actualizados
+    });
+
+  })();
+</script>
+<div class="modal fade" id="pdfDownloadModal" tabindex="-1" aria-labelledby="pdfDownloadModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="pdfDownloadModalLabel">PDF Generado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="pdfModalMessage"></p>
+        <a id="pdfDownloadLink" href="#" class="btn btn-primary" download>Descargar PDF</a>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const flashMessages = document.querySelectorAll('.alert.alert-success');
+    let pdfFilename = null;
+
+    flashMessages.forEach(function(msg) {
+      const text = msg.textContent || msg.innerText;
+      const match = text.match(/PDF generado: (factura_.*\.pdf)/);
+      if (match && match[1]) {
+        pdfFilename = match[1];
+        // Opcional: ocultar el mensaje flash original si se va a usar el modal
+        msg.style.display = 'none';
+      }
+    });
+
+    if (pdfFilename) {
+      const pdfDownloadModal = new bootstrap.Modal(document.getElementById('pdfDownloadModal'));
+      const pdfDownloadLink = document.getElementById('pdfDownloadLink');
+      const pdfModalMessage = document.getElementById('pdfModalMessage');
+      pdfDownloadLink.href = `/static/pdfs/${pdfFilename}`;
+      pdfModalMessage.textContent = `Factura guardada correctamente. ¿Deseas descargar el PDF ${pdfFilename} ahora?`;
+      pdfDownloadModal.show();
+    }
+  });
+</script>
+{% endblock %}

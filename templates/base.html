@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title or "JHALCA App" }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body { min-height:100vh; }
+      .sidebar { width: 250px; background:#1f2937; color: #fff; min-height:100vh; position:fixed; transition: width 0.2s ease; }
+      .sidebar .nav-link { color:#d1d5db; display:flex; align-items:center; gap:8px; }
+      .sidebar .nav-link .icon { width:24px; text-align:center; }
+      .sidebar .nav-link:hover { color:#fff; background: rgba(255,255,255,0.03); }
+      .sidebar .submenu { padding-left:1rem; }
+      .sidebar .sidebar-header { cursor: pointer; }
+      .content { margin-left:250px; padding:20px; transition: margin-left 0.2s ease; }
+      .topbar { height:56px; background:#111827; color:#fff; position:fixed; left:250px; right:0; top:0; display:flex; align-items:center; justify-content:flex-end; padding:0 16px; z-index:1000; transition: left 0.2s ease; }
+      .topbar .user-photo { width:36px; height:36px; border-radius:50%; object-fit:cover; margin-left:8px; }
+      /* Modo colapsado: solo iconos */
+      body.sidebar-collapsed .sidebar { width:64px; cursor:pointer; }
+      body.sidebar-collapsed .content { margin-left:64px; }
+      body.sidebar-collapsed .topbar { left:64px; }
+      body.sidebar-collapsed .sidebar .label, body.sidebar-collapsed .sidebar-header h4 { display:none; }
+      body.sidebar-collapsed .sidebar .nav-link { justify-content:center; }
+      body.sidebar-collapsed .sidebar .submenu { display:none !important; }
+      @media (max-width: 768px) {
+        /* En móviles colapsamos por defecto */
+        body:not(.sidebar-collapsed) .topbar { left:250px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar">
+      <div class="p-3 sidebar-header" onclick="toggleSidebar()" role="button" aria-label="Expandir/contraer menú" title="Expandir/contraer menú">
+        <h4 class="text-white">JHALCA</h4>
+      </div>
+      <nav class="nav flex-column" id="sidebarMenu">
+        <a class="nav-link" data-bs-toggle="collapse" href="#registrosMenu" role="button"><span class="icon">🗂️</span><span class="label">REGISTROS</span></a>
+        <div class="collapse submenu" id="registrosMenu">
+          <a class="nav-link" href="{{ url_for('clientes') }}">Clientes</a>
+          <a class="nav-link" href="{{ url_for('proveedores') }}">Proveedores</a>
+          <a class="nav-link" href="{{ url_for('comprobantes') }}">Comprobantes</a>
+          <a class="nav-link" href="{{ url_for('tipos') }}">Tipos</a>
+        </div>
+
+        <a class="nav-link" data-bs-toggle="collapse" href="#inventarioMenu" role="button"><span class="icon">📦</span><span class="label">INVENTARIO</span></a>
+        <div class="collapse submenu" id="inventarioMenu">
+          <a class="nav-link" href="{{ url_for('mercancias') }}">Mercancías</a>
+          <a class="nav-link" href="{{ url_for('ajusteinv') }}">Ajuste Inventario</a>
+        </div>
+
+        <a class="nav-link" data-bs-toggle="collapse" href="#comprasMenu" role="button"><span class="icon">🛒</span><span class="label">COMPRAS</span></a>
+        <div class="collapse submenu" id="comprasMenu">
+          <a class="nav-link" href="{{ url_for('compras') }}">Crear Compra</a>
+          <a class="nav-link" href="{{ url_for('devoluciones', origen='compra') }}">Devolución Compra</a>
+        </div>
+
+        <a class="nav-link" data-bs-toggle="collapse" href="#facturasMenu" role="button"><span class="icon">🧾</span><span class="label">FACTURAS</span></a>
+        <div class="collapse submenu" id="facturasMenu">
+          <a class="nav-link" href="{{ url_for('facturas') }}">Crear Factura</a>
+          <a class="nav-link" href="{{ url_for('devoluciones', origen='venta') }}">Devolución Factura</a>
+        </div>
+
+        <a class="nav-link" data-bs-toggle="collapse" href="#finanzasMenu" role="button"><span class="icon">💰</span><span class="label">FINANZAS</span></a>
+        <div class="collapse submenu" id="finanzasMenu">
+          <a class="nav-link" href="{{ url_for('cobros') }}">Cobrar</a>
+          <a class="nav-link" href="{{ url_for('pagos') }}">Pagar</a>
+          <a class="nav-link" href="{{ url_for('gastos') }}">Gastos</a>
+          <a class="nav-link" href="#">Caja Chica</a>
+        </div>
+
+
+        <a class="nav-link" data-bs-toggle="collapse" href="#sistemaMenu" role="button"><span class="icon">⚙️</span><span class="label">SISTEMA</span></a>
+        <div class="collapse submenu" id="sistemaMenu">
+          <a class="nav-link" href="{{ url_for('usuarios') }}">Usuarios</a>
+          <a class="nav-link" href="{{ url_for('configuracion') }}">Configuraciones</a>
+          <a class="nav-link" href="{{ url_for('datos_empresa') }}">Empresa</a>
+        </div>
+      </nav>
+    </div>
+
+<div class="topbar d-flex align-items-center justify-content-between px-3 py-2 bg-dark text-white">
+  <h4 class="m-0 text-start">{{ page_title }}</h3>
+
+  {% if current_user.is_authenticated %}
+    <div class="d-flex align-items-center">
+      <div class="me-2">{{ current_user.fullname or current_user.username }}</div>
+        <img src="/static/img/user.png" class="user-photo" alt="US">
+      <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light ms-3">Cerrar sesión</a>
+    </div>
+  {% else %}
+    <a href="{{ url_for('login') }}" class="btn btn-sm btn-outline-light">Iniciar sesión</a>
+  {% endif %}
+</div>
+
+
+    <div class="content" style="padding-top:72px;">
+      <div class="container-fluid">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, msg in messages %}
+              <div class="alert alert-{{ category }} alert-sm">{{ msg }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      function toggleSidebar(){
+        const body = document.body;
+        const collapsed = body.classList.toggle('sidebar-collapsed');
+        try { localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0'); } catch(e){}
+      }
+      // Colapsar por defecto en móviles y recordar preferencia
+      (function(){
+        try {
+          const pref = localStorage.getItem('sidebarCollapsed');
+          if(pref === '1'){
+            document.body.classList.add('sidebar-collapsed');
+          } else if(window.innerWidth < 768){
+            document.body.classList.add('sidebar-collapsed');
+          }
+        } catch(e){
+          if(window.innerWidth < 768){
+            document.body.classList.add('sidebar-collapsed');
+          }
+        }
+      })();
+      // Cuando el sidebar está oculto, cualquier clic dentro lo muestra
+      (function(){
+        const sidebar = document.querySelector('.sidebar');
+        if(sidebar){
+          sidebar.addEventListener('click', function(e){
+            if(document.body.classList.contains('sidebar-collapsed')){
+              e.preventDefault();
+              e.stopPropagation();
+              toggleSidebar();
+            }
+          }, true);
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block content %}
+
+<ul class="nav nav-tabs" id="tabs-{{ form_name }}" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar / Editar</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button">Reportes</button>
+  </li>
+</ul>
+
+<div class="tab-content mt-3">
+  <div class="tab-pane fade show active" id="tab-form">
+    <form method="post" id="mercancia-form">
+      <input type="hidden" name="id" id="mercancia-id">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Código</label>
+          <input class="form-control" name="codigo" id="mercancia-codigo" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Nombre</label>
+          <input class="form-control" name="nombre" id="mercancia-nombre" required>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Tipo</label>
+          <select class="form-select" name="tipo" id="mercancia-tipo" required>
+            <option value="Inventario">Inventario</option>
+            <option value="Servicios">Servicios</option>
+            <option value="Materiales">Materiales</option>
+          </select>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Clase</label>
+          <select class="form-select" name="clase_id" id="mercancia-clase">
+            <option value="">Seleccione una clase</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Precio</label>
+          <input type="number" step="0.01" class="form-control" name="precio" id="mercancia-precio" placeholder="0.00">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Costo</label>
+          <input type="number" step="0.01" class="form-control" name="costo" id="mercancia-costo" placeholder="0.00">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Existencia</label>
+          <input type="number" class="form-control" name="existencia" id="mercancia-existencia" placeholder="0">
+        </div>
+      </div>
+      <button class="btn btn-success">Guardar</button>
+      <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+    </form>
+  </div>
+
+  <div class="tab-pane fade" id="tab-buscar">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="input-group mb-3">
+          <input id="buscar-input" class="form-control" placeholder="Escriba para buscar...">
+          <button id="buscar-btn" class="btn btn-primary">Buscar</button>
+        </div>
+      </div>
+    </div>
+    <div id="buscar-resultados">
+      <!-- resultados via fetch / ajax -->
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="tab-reportes">
+    <p>Reportes relacionados a {{ page_title }}:</p>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-primary" href="/mercancias/reporte_pdf" target="_blank">Reporte PDF</a>
+      <button class="btn btn-outline-secondary">Exportar Excel</button>
+      <button class="btn btn-outline-info">Listado Detallado</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const buscarBtn = document.getElementById('buscar-btn');
+const buscarInput = document.getElementById('buscar-input');
+const resultadosDiv = document.getElementById('buscar-resultados');
+
+async function buscarMercancias(){
+  const q = (buscarInput.value || '').trim();
+  resultadosDiv.innerHTML = '';
+  if(!q){
+    resultadosDiv.innerHTML = '<div class="alert alert-warning">Escriba un nombre para buscar.</div>';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/mercancias?q=${encodeURIComponent(q)}`);
+    if(!res.ok) throw new Error('Error al buscar');
+    const data = await res.json();
+    if(data.length === 0){
+      resultadosDiv.innerHTML = '<div class="alert alert-info">No hay resultados.</div>';
+      return;
+    }
+    let html = '<div class="list-group">';
+    for(const m of data){
+      html += `
+      <div class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <div><strong>${m.codigo || ''}</strong> - ${m.nombre || ''}</div>
+          <div class="small text-muted">Precio: $${m.precio ?? 0} • Existencia: ${m.existencia ?? 0} • Clase: ${m.clase_nombre || 'Sin clase'}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" data-action="editar" data-id="${m.id}">Editar</button>
+      </div>`;
+    }
+    html += '</div>';
+    resultadosDiv.innerHTML = html;
+  } catch(err){
+    resultadosDiv.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+  }
+}
+
+buscarBtn?.addEventListener('click', function(e){
+  e.preventDefault();
+  buscarMercancias();
+});
+
+resultadosDiv?.addEventListener('click', async function(e){
+  const btn = e.target.closest('button[data-action="editar"]');
+  if(!btn) return;
+  const id = btn.getAttribute('data-id');
+  try {
+    const res = await fetch(`/api/mercancias/${id}`);
+    if(!res.ok) throw new Error('No se pudo cargar la mercancía');
+    const m = await res.json();
+    document.getElementById('mercancia-id').value = m.id || '';
+    document.getElementById('mercancia-codigo').value = m.codigo || '';
+    document.getElementById('mercancia-nombre').value = m.nombre || '';
+    document.getElementById('mercancia-precio').value = m.precio ?? '';
+    document.getElementById('mercancia-existencia').value = m.existencia ?? '';
+    document.getElementById('mercancia-costo').value = m.costo ?? '';
+    document.getElementById('mercancia-tipo').value = m.tipo || 'Inventario';
+    document.getElementById('mercancia-clase').value = m.clase_id || '';
+    const tabTrigger = document.getElementById('form-tab');
+    if(tabTrigger && window.bootstrap){
+      const tab = new bootstrap.Tab(tabTrigger);
+      tab.show();
+    } else {
+      document.getElementById('tab-form')?.scrollIntoView({behavior:'smooth'});
+    }
+  } catch(err){
+    alert('Error al cargar mercancía: ' + err.message);
+  }
+});
+
+// Botón "Nuevo" para limpiar y volver a modo creación
+const limpiar = document.getElementById('limpiar-form');
+limpiar?.addEventListener('click', function(){
+  document.getElementById('mercancia-id').value = '';
+  document.getElementById('mercancia-form').reset();
+});
+
+// Cargar tipos de mercancía al inicializar la página
+async function cargarTiposMercancia() {
+  try {
+    const res = await fetch('/api/tipos/mercancia');
+    if (!res.ok) throw new Error('Error al cargar tipos');
+    const tipos = await res.json();
+    
+    const select = document.getElementById('mercancia-clase');
+    // Limpiar opciones existentes excepto la primera
+    select.innerHTML = '<option value="">Seleccione una clase</option>';
+    
+    // Agregar opciones de tipos
+    tipos.forEach(tipo => {
+      const option = document.createElement('option');
+      option.value = tipo.id;
+      option.textContent = tipo.nombre;
+      select.appendChild(option);
+    });
+  } catch (err) {
+    console.error('Error al cargar tipos de mercancía:', err);
+  }
+}
+
+// Cargar tipos al inicializar
+document.addEventListener('DOMContentLoaded', cargarTiposMercancia);
+</script>
+{% endblock %}

@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block content %}
+
+<ul class="nav nav-tabs" id="tabs-{{ form_name }}" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar / Editar</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button">Reportes</button>
+  </li>
+</ul>
+<div class="tab-content mt-3">
+  <div class="tab-pane fade show active" id="tab-form">
+    <form method="POST" action="{{ url_for('gastos') }}">
+      <input type="hidden" name="id" id="gasto-id">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Código (auto)</label>
+          <input type="text" class="form-control" name="codigo" id="gasto-codigo" placeholder="Se genera automáticamente" readonly>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Fecha *</label>
+          <input type="date" class="form-control" name="fecha" id="gasto-fecha" required>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-8 mb-3">
+          <label class="form-label">Descripción</label>
+          <input type="text" class="form-control" name="descripcion" id="gasto-descripcion" placeholder="Descripción del gasto">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Monto</label>
+          <input type="number" step="0.01" class="form-control" name="monto" id="gasto-monto" placeholder="0.00">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Documento</label>
+          <input type="text" class="form-control" name="documento" id="gasto-documento" placeholder="Ej: factura #, recibo #">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Clase</label>
+          <select class="form-select" name="clase_id" id="gasto-clase">
+            <option value="">Seleccione una clase</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-success">Guardar</button>
+      <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+    </form>
+  </div>
+
+  <div class="tab-pane fade" id="tab-buscar">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="input-group mb-3">
+          <input id="buscar-input" class="form-control" placeholder="Escriba para buscar...">
+          <button id="buscar-btn" class="btn btn-primary">Buscar</button>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="small text-muted">Puede buscar por código o descripción.</div>
+      </div>
+    </div>
+    <div id="buscar-resultados"></div>
+  </div>
+
+  <div class="tab-pane fade" id="tab-reportes" role="tabpanel" aria-labelledby="reportes-tab">
+    <div class="mt-3">
+      <h5>Reportes de Gastos por Fecha</h5>
+      <div class="row g-3 align-items-end">
+        <div class="col-sm-4">
+          <label for="rep-desde" class="form-label">Desde</label>
+          <input type="date" id="rep-desde" class="form-control" />
+        </div>
+        <div class="col-sm-4">
+          <label for="rep-hasta" class="form-label">Hasta</label>
+          <input type="date" id="rep-hasta" class="form-control" />
+        </div>
+        <div class="col-sm-4 d-flex gap-2">
+          <button id="btn-buscar-reporte" class="btn btn-primary">Buscar</button>
+          <button id="btn-exportar-pdf" class="btn btn-danger">Exportar PDF</button>
+        </div>
+      </div>
+  
+      <div id="reportes-resultados" class="mt-3">
+        <!-- Resultados de búsqueda por fecha se renderizan aquí -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Cargar clases de gasto desde /api/tipos/gasto
+async function cargarClasesGasto(){
+  try {
+    const res = await fetch('/api/tipos/gasto');
+    const data = await res.json();
+    const sel = document.getElementById('gasto-clase');
+    sel.innerHTML = '<option value="">Seleccione una clase</option>';
+    data.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id; opt.textContent = t.nombre;
+      sel.appendChild(opt);
+    });
+  } catch(err){ console.error('Error cargando clases gasto', err); }
+}
+
+// Buscar gastos
+async function buscar(){
+  const q = document.getElementById('buscar-input').value.trim();
+  const res = await fetch(`/api/gastos?q=${encodeURIComponent(q)}`);
+  const data = await res.json();
+  const cont = document.getElementById('buscar-resultados');
+  cont.innerHTML = '';
+  if(data.length === 0){
+    cont.innerHTML = '<div class="text-muted">Sin resultados</div>';
+    return;
+  }
+  data.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'card mb-2';
+    div.innerHTML = `
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <div>
+            <div class="fw-bold">${g.codigo ?? ''} — ${g.descripcion ?? ''}</div>
+            <div class="small text-muted">Fecha: ${g.fecha ?? '—'} • Monto: $${(g.monto ?? 0).toFixed(2)} • Clase: ${g.clase_nombre || 'Sin clase'}</div>
+            <div class="small text-muted">Documento: ${g.documento || ''}</div>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-outline-primary" data-id="${g.id}">Editar</button>
+          </div>
+        </div>
+      </div>`;
+    // Editar
+    div.querySelector('button[data-id]').addEventListener('click', async (ev) => {
+      const id = ev.target.getAttribute('data-id');
+      const res2 = await fetch(`/api/gastos/${id}`);
+      const d = await res2.json();
+      document.getElementById('gasto-id').value = d.id;
+      document.getElementById('gasto-codigo').value = d.codigo || '';
+      document.getElementById('gasto-fecha').value = d.fecha || '';
+      document.getElementById('gasto-descripcion').value = d.descripcion || '';
+      document.getElementById('gasto-monto').value = d.monto ?? '';
+      document.getElementById('gasto-documento').value = d.documento || '';
+      document.getElementById('gasto-clase').value = d.clase_id ?? '';
+      // Cambiar a pestaña Formulario
+      const trigger = document.getElementById('form-tab');
+      const tab = new bootstrap.Tab(trigger);
+      tab.show();
+    });
+    cont.appendChild(div);
+  });
+}
+
+document.getElementById('buscar-btn').addEventListener('click', buscar);
+
+document.getElementById('limpiar-form').addEventListener('click', () => {
+  document.getElementById('gasto-id').value = '';
+  document.getElementById('gasto-codigo').value = '';
+  document.getElementById('gasto-fecha').value = '';
+  document.getElementById('gasto-descripcion').value = '';
+  document.getElementById('gasto-monto').value = '';
+  document.getElementById('gasto-documento').value = '';
+  document.getElementById('gasto-clase').value = '';
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  cargarClasesGasto();
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const day = String(today.getDate()).padStart(2, '0');
+  document.getElementById('gasto-fecha').value = `${year}-${month}-${day}`;
+});
+</script>
+<script>
+  (function() {
+    const $desde = document.getElementById('rep-desde');
+    const $hasta = document.getElementById('rep-hasta');
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+    const day = String(today.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    $desde.value = formattedDate;
+    $hasta.value = formattedDate;
+    const $btnBuscar = document.getElementById('btn-buscar-reporte');
+    const $btnExportar = document.getElementById('btn-exportar-pdf');
+    const $resultados = document.getElementById('reportes-resultados');
+
+    function rangoValido() {
+      const d = $desde.value;
+      const h = $hasta.value;
+      if (!d || !h) return true; // permitir búsqueda con uno solo, si así se desea
+      return new Date(d) <= new Date(h);
+    }
+
+    function renderResultados(items) {
+      if (!items || !items.length) {
+        $resultados.innerHTML = '<div class="alert alert-info">Sin resultados para el rango indicado.</div>';
+        return;
+      }
+      const rows = items.map(it => {
+        const fecha = it.fecha ? new Date(it.fecha).toLocaleDateString() : '';
+        const monto = (it.monto ?? 0).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+        return `<tr>
+          <td>${it.codigo || ''}</td>
+          <td>${fecha}</td>
+          <td>${it.descripcion || ''}</td>
+          <td class="text-end">${monto}</td>
+          <td>${it.documento || ''}</td>
+          <td>${it.clase || ''}</td>
+        </tr>`;
+      }).join('');
+      $resultados.innerHTML = `
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Fecha</th>
+                <th>Descripción</th>
+                <th class="text-end">Monto</th>
+                <th>Documento</th>
+                <th>Clase</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    async function buscar() {
+      if (!rangoValido()) {
+        alert('El rango de fechas no es válido: "Desde" debe ser menor o igual a "Hasta"');
+        return;
+      }
+      const params = new URLSearchParams();
+      if ($desde.value) params.append('desde', $desde.value);
+      if ($hasta.value) params.append('hasta', $hasta.value);
+      try {
+        const resp = await fetch(`/api/gastos/por_fecha?${params.toString()}`, { credentials: 'include' });
+        if (!resp.ok) throw new Error('No se pudo obtener el reporte');
+        const data = await resp.json();
+        renderResultados(data);
+      } catch (err) {
+        console.error(err);
+        $resultados.innerHTML = '<div class="alert alert-danger">Error al buscar gastos por fecha.</div>';
+      }
+    }
+
+    function exportarPDF() {
+      if (!rangoValido()) {
+        alert('El rango de fechas no es válido: "Desde" debe ser menor o igual a "Hasta"');
+        return;
+      }
+      const params = new URLSearchParams();
+      if ($desde.value) params.append('desde', $desde.value);
+      if ($hasta.value) params.append('hasta', $hasta.value);
+      const url = `/gastos/reporte_pdf?${params.toString()}`;
+      window.open(url, '_blank');
+    }
+
+    if ($btnBuscar) $btnBuscar.addEventListener('click', buscar);
+    if ($btnExportar) $btnExportar.addEventListener('click', exportarPDF);
+  })();
+</script>
+{% endblock %}

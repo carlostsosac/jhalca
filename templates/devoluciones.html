@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+
+  <ul class="nav nav-tabs" id="tabs-devoluciones" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario de Devolución</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar Devoluciones</button>
+    </li>
+  </ul>
+
+  <div class="tab-content pt-3">
+    <div class="tab-pane fade show active" id="tab-form">
+      <form method="post" id="devolucion-form">
+        <input type="hidden" name="id" id="devolucion-id">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Código</label>
+            <input class="form-control" name="codigo" id="devolucion-codigo" placeholder="(auto)" readonly>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha</label>
+            <input type="date" class="form-control" id="fecha" name="fecha" value="{{ current_date.strftime('%Y-%m-%d') }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Tipo de Devolución</label>
+            <select class="form-select" id="devolucion-tipo-display" disabled>
+              <option value="venta" {% if origen == 'venta' %}selected{% endif %}>Devolución de Venta (Cliente)</option>
+              <option value="compra" {% if origen == 'compra' %}selected{% endif %}>Devolución de Compra (Proveedor)</option>
+            </select>
+            <input type="hidden" name="tipo" id="devolucion-tipo" value="{{ origen }}">
+          </div>
+           <div class="col-md-3">
+            <label class="form-label">Estado</label>
+            <select class="form-select" name="estado" id="devolucion-estado">
+              <option value="activa">Activa</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+          </div>
+
+          <div class="col-md-6" id="documento-selector">
+            <label class="form-label" id="documento-label">Buscar Factura</label>
+            <div class="input-group">
+              <input class="form-control" id="documento-buscar" placeholder="Ingrese el código de la factura...">
+              <button class="btn btn-outline-secondary" type="button" id="btn-buscar-documento">Buscar</button>
+            </div>
+            <input type="hidden" name="cliente_id" id="cliente-id">
+            <input type="hidden" name="proveedor_id" id="proveedor-id">
+            <div class="form-text" id="entidad-seleccion"></div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Comentario</label>
+            <textarea class="form-control" name="comentario" id="devolucion-comentario" rows="1"></textarea>
+          </div>
+        </div>
+
+        <hr />
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Artículos del Documento a Devolver</h5>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="detalle-tabla">
+            <thead>
+              <tr>
+                <th>Documento Origen</th>
+                <th>Mercancía</th>
+                <th style="width: 8rem" class="text-end">Cant. Comprada</th>
+                <th style="width: 8rem" class="text-end">Cant. a Devolver</th>
+                <th style="width: 10rem" class="text-end">Precio/Costo</th>
+                <th style="width: 10rem" class="text-end">Importe Dev.</th>
+                <th style="width: 5rem">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="detalle-body"></tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-end mt-2">
+          <div class="me-4"><strong>Subtotal:</strong> <span id="subtotal-span">0.00</span></div>
+          <div class="me-4"><strong>ITBIS:</strong> <span id="itbis-span">0.00</span></div>
+          <div><strong>Total:</strong> <span id="total-span">0.00</span></div>
+        </div>
+
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-success">Guardar Devolución</button>
+          <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="tab-pane fade" id="tab-buscar">
+      <p>Próximamente: Búsqueda de devoluciones.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de búsqueda de documentos -->
+<div class="modal fade" id="modalDocumentos" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalDocumentosTitle">Buscar Documento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-2">
+          <input type="text" class="form-control" id="qDocumento" placeholder="Buscar por código, cliente/proveedor, comentario..." />
+          <button class="btn btn-outline-secondary" id="btnBuscarDocModal">Buscar</button>
+        </div>
+        <div id="documentosResultados"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const $tipoDevolucion = document.getElementById('devolucion-tipo'); // Ahora es el input hidden
+  const $documentoLabel = document.getElementById('documento-label');
+  const $documentoBuscar = document.getElementById('documento-buscar');
+  const $btnBuscarDocumento = document.getElementById('btn-buscar-documento');
+  const $entidadSeleccion = document.getElementById('entidad-seleccion');
+  const $clienteId = document.getElementById('cliente-id');
+  const $proveedorId = document.getElementById('proveedor-id');
+  const $detalleBody = document.getElementById('detalle-body');
+  const $subtotalSpan = document.getElementById('subtotal-span');
+  const $itbisSpan = document.getElementById('itbis-span');
+  const $totalSpan = document.getElementById('total-span');
+
+  const modalDocumentos = new bootstrap.Modal(document.getElementById('modalDocumentos'));
+
+  function fmt(n) {
+    return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function recalcularTotales() {
+    let subtotal = 0;
+    $detalleBody.querySelectorAll('tr').forEach(tr => {
+      const cantInput = tr.querySelector('input[name="cantidad[]"]');
+      let cantidadDevolver = parseFloat(cantInput.value) || 0;
+      const maxCantidad = parseFloat(cantInput.max);
+
+      // Validar que la cantidad a devolver no exceda el máximo.
+      if (cantidadDevolver > maxCantidad) {
+        cantidadDevolver = maxCantidad;
+        cantInput.value = maxCantidad; // Corregir el valor en el input
+        // Mostrar una alerta visual temporal
+        cantInput.style.borderColor = 'red';
+        setTimeout(() => {
+          cantInput.style.borderColor = '';
+        }, 1500);
+      }
+
+      const precio = parseFloat(tr.querySelector('input[name="precio[]"]').value) || 0;
+      const importe = cantidadDevolver * precio;
+      tr.querySelector('.importe-devuelto').textContent = fmt(importe);
+      subtotal += importe;
+    });
+
+    // Solo calcular ITBIS si hay subtotal, para evitar -0.00
+    const itbis = subtotal > 0 ? subtotal * 0.18 : 0; // Asumiendo 18%
+
+    const total = subtotal + itbis;
+    $subtotalSpan.textContent = fmt(subtotal);
+    $itbisSpan.textContent = fmt(itbis);
+    $totalSpan.textContent = fmt(total);
+  }
+
+  function limpiarFormulario() {
+    document.getElementById('devolucion-form').reset();
+    $detalleBody.innerHTML = '';
+    $clienteId.value = '';
+    $proveedorId.value = '';
+    $documentoBuscar.value = '';
+    $entidadSeleccion.textContent = '';
+    recalcularTotales();
+    updateUIForTipo();
+  }
+  document.getElementById('limpiar-form').addEventListener('click', limpiarFormulario);
+
+  function updateUIForTipo() {
+    const tipo = $tipoDevolucion.value; // Lee del input hidden
+    if (tipo === 'venta') {
+      $documentoLabel.textContent = "Buscar Factura";
+      $documentoBuscar.placeholder = "Ingrese el código de la factura...";
+    } else {
+      $documentoLabel.textContent = "Buscar Compra";
+      $documentoBuscar.placeholder = "Ingrese el código de la compra...";
+    }
+  }
+
+  function handleTipoChange() {
+    // Al cambiar el tipo, limpiamos todo el formulario.
+    limpiarFormulario();
+  }
+  // Ya no es necesario el 'change' listener, porque el campo está bloqueado.
+
+  async function buscarDocumento() {
+    // Esta función ahora abre el modal de búsqueda
+    const tipo = $tipoDevolucion.value;
+    document.getElementById('modalDocumentosTitle').textContent = `Buscar ${tipo === 'venta' ? 'Factura' : 'Compra'}`;
+    document.getElementById('qDocumento').value = $documentoBuscar.value;
+    document.getElementById('documentosResultados').innerHTML = '';
+    
+    // Iniciar la búsqueda dentro del modal si hay texto suficiente
+    if ($documentoBuscar.value.trim().length >= 3) {
+      buscarEnModal();
+    }
+    modalDocumentos.show();
+  }
+
+  async function buscarEnModal() {
+    const tipo = $tipoDevolucion.value;
+    const q = document.getElementById('qDocumento').value.trim();
+    const url = tipo === 'venta' ? `/api/facturas?q=${q}` : `/api/compras?q=${q}`;
+    const $resultados = document.getElementById('documentosResultados');
+    $resultados.innerHTML = 'Cargando...';
+
+    const resp = await fetch(url);
+    const documentos = await resp.json();
+
+    if (documentos.length === 0) {
+      $resultados.innerHTML = '<div class="alert alert-info">No se encontraron documentos.</div>';
+      return;
+    }
+
+    const rows = documentos.map(doc => `
+      <tr>
+        <td>${doc.codigo}</td>
+        <td>${doc.fecha.split('T')[0]}</td>
+        <td>${tipo === 'venta' ? doc.cliente_nombre : doc.proveedor_nombre}</td>
+        <td class="text-end">${fmt(doc.total)}</td>
+        <td><button class="btn btn-sm btn-primary btn-seleccionar-doc" data-id="${doc.id}" data-codigo="${doc.codigo}">Seleccionar</button></td>
+      </tr>
+    `).join('');
+
+    $resultados.innerHTML = `
+      <table class="table table-sm table-hover">
+        <thead><tr><th>Código</th><th>Fecha</th><th>${tipo === 'venta' ? 'Cliente' : 'Proveedor'}</th><th class="text-end">Total</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    $resultados.querySelectorAll('.btn-seleccionar-doc').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const docId = btn.dataset.id;
+        cargarDocumento(docId);
+        modalDocumentos.hide();
+      });
+    });
+  }
+
+  async function cargarDocumento(id) {
+    const tipo = $tipoDevolucion.value;
+    const url = tipo === 'venta' ? `/api/facturas/${id}` : `/api/compras/${id}`;
+
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        alert(`Documento con código "${codigo}" no encontrado.`);
+        return;
+      }
+      const doc = await resp.json();
+      
+      // Limpiar antes de cargar nuevos datos
+      limpiarFormulario();
+      $documentoBuscar.value = doc.codigo; // Poner el código del doc seleccionado
+
+      if (tipo === 'venta') {
+        $clienteId.value = doc.cliente_id;
+        $entidadSeleccion.textContent = `Cliente: ${doc.cliente_nombre || 'N/A'} (RNC: ${doc.cliente_rnc || 'N/A'})`;
+      } else {
+        $proveedorId.value = doc.proveedor_id;
+        $entidadSeleccion.textContent = `Proveedor: ${doc.proveedor_nombre || 'N/A'}`;
+      }
+
+      $detalleBody.innerHTML = '';
+      doc.detalles.forEach(item => {
+        // Añadimos el ID del documento principal a cada item del detalle
+        item.doc_id = doc.id;
+        addDetalleRow(item);
+      });
+      recalcularTotales();
+
+    } catch (error) {
+      console.error("Error buscando documento:", error);
+      alert("Ocurrió un error al buscar el documento.");
+    }
+  }
+
+  $btnBuscarDocumento.addEventListener('click', buscarDocumento);
+  
+  let searchDebounce;
+  $documentoBuscar.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      buscarDocumento();
+    }
+  });
+  $documentoBuscar.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      const q = $documentoBuscar.value.trim();
+      if (q.length >= 3) {
+        buscarDocumento();
+      }
+    }, 300);
+  });
+
+  // Eventos del modal de búsqueda
+  document.getElementById('btnBuscarDocModal').addEventListener('click', buscarEnModal);
+  document.getElementById('qDocumento').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      buscarEnModal();
+    }
+  });
+
+  function addDetalleRow(item) {
+    const tipo = $tipoDevolucion.value;
+    const tr = document.createElement('tr');
+
+    // Aseguramos que doc_id y doc_codigo estén presentes
+    const docId = item.doc_id; // El id del documento principal (factura o compra)
+    const docCodigo = item.doc_codigo || $documentoBuscar.value;
+
+    tr.innerHTML = `
+      <td>
+        ${docCodigo}
+        ${tipo === 'venta' ? `<input type="hidden" name="factura_id[]" value="${docId}">` : ''}
+        ${tipo === 'compra' ? `<input type="hidden" name="compra_id[]" value="${docId}">` : ''}
+        <input type="hidden" name="mercancia_id[]" value="${item.mercancia_id}">
+      </td>
+      <td>${item.mercancia_codigo} - ${item.mercancia_nombre}</td>
+      <td class="text-end">${item.cantidad}</td>
+      <td>
+        <input type="number" class="form-control form-control-sm text-end" 
+               name="cantidad[]" value="${item.cantidad}" 
+               min="0" max="${item.cantidad}" 
+               oninput="recalcularTotales()"
+               required>
+      </td>
+      <td><input type="number" class="form-control form-control-sm text-end" name="precio[]" value="${item.precio}" readonly></td>
+      <td class="text-end importe-devuelto">${fmt(item.cantidad * item.precio)}</td>
+      <td><button type="button" class="btn btn-outline-danger btn-sm btn-eliminar">X</button></td>
+    `;
+    $detalleBody.appendChild(tr);
+    tr.querySelector('.btn-eliminar').addEventListener('click', () => {
+      tr.remove();
+      recalcularTotales();
+    });
+
+    // Añadimos un listener al nuevo input de cantidad para recalcular
+    const cantInput = tr.querySelector('input[name="cantidad[]"]');
+    cantInput.addEventListener('input', recalcularTotales);
+    cantInput.addEventListener('change', recalcularTotales); // Para clics en las flechas del input
+
+  }
+
+  // Inicializar
+  updateUIForTipo();
+});
+</script>
+{% endblock %}

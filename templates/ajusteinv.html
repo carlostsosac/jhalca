@@ -1,0 +1,417 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-3">
+
+  <ul class="nav nav-tabs" id="ajusteTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button" role="tab">Formulario</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button" role="tab">Buscar</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button" role="tab">Reportes</button>
+    </li>
+  </ul>
+
+  <div class="tab-content pt-3">
+    <!-- Formulario -->
+    <div class="tab-pane fade show active" id="tab-form" role="tabpanel" aria-labelledby="form-tab">
+      <form id="ajusteForm" method="POST" action="/ajusteinv">
+        <input type="hidden" name="id" id="ajuste_id" />
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label for="codigo" class="form-label">Código</label>
+            <input type="text" class="form-control" id="codigo" name="codigo" placeholder="(auto)" readonly />
+          </div>
+          <div class="col-md-3">
+            <label for="fecha" class="form-label">Fecha</label>
+            <input type="date" class="form-control" id="fecha" name="fecha" value="{{ current_date.strftime('%Y-%m-%d') }}" required />
+          </div>
+          <div class="col-md-3">
+            <label for="clase" class="form-label">Clase</label>
+            <select class="form-select" id="clase" name="clase"></select>
+            
+          </div>
+          <div class="col-md-3">
+            <label for="estado" class="form-label">Estado</label>
+            <select class="form-select" id="estado" name="estado">
+              <option value="activo" selected>Activo</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label for="comentario" class="form-label">Comentario</label>
+            <textarea class="form-control" id="comentario" name="comentario" rows="2" placeholder="Motivo del ajuste" required></textarea>
+            <div class="invalid-feedback">El motivo del ajuste es obligatorio.</div>
+          </div>
+        </div>
+
+        <hr />
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Detalle</h5>
+          <div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddLine">Agregar línea</button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="detalleTable">
+            <thead>
+              <tr>
+                <th style="width: 7rem">Código</th>
+                <th>Descripción</th>
+                <th style="width: 7rem" class="text-end">Existencia</th>
+                <th style="width: 7rem" class="text-end">Costo</th>
+                <th style="width: 7rem" class="text-end">Cantidad</th>
+                <th style="width: 9rem">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="detalleBody"></tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-end mt-2">
+          <div class="me-4"><strong>Total:</strong> <span id="totalSpan">0.00</span></div>
+          <button type="submit" class="btn btn-success">Guardar</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Buscar / Editar -->
+    <div class="tab-pane fade" id="tab-buscar" role="tabpanel" aria-labelledby="buscar-tab">
+      <div class="row g-2 mb-2">
+        <div class="col-md-6">
+          <input type="text" class="form-control" id="buscarInput" placeholder="Buscar por código o comentario" />
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-primary" id="btnBuscarAjustes">Buscar</button>
+        </div>
+      </div>
+
+      <div id="buscarResultados"></div>
+    </div>
+
+    <!-- Reportes -->
+    <div class="tab-pane fade" id="tab-reportes" role="tabpanel" aria-labelledby="reportes-tab">
+      <div class="alert alert-secondary">Próximamente: reportes de ajustes de inventario.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de mercancías -->
+<div class="modal fade" id="modalMercancias" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buscar mercancía</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-2">
+          <input type="text" class="form-control" id="qMerc" placeholder="Buscar por nombre" />
+          <button class="btn btn-outline-secondary" id="btnBuscarMerc">Buscar</button>
+        </div>
+        <div id="mercResultados"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+<!-- Modal de ajuste (detalles) -->
+<div class="modal fade" id="modalAjusteDetalle" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ajusteModalTitulo">Ajuste</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="ajusteModalInfo" class="mb-2"></div>
+        <div id="ajusteModalResultados"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const $detalleBody = document.getElementById('detalleBody');
+    const $btnAddLine = document.getElementById('btnAddLine');
+    const $totalSpan = document.getElementById('totalSpan');
+    const $ajusteForm = document.getElementById('ajusteForm');
+    const $clase = document.getElementById('clase');
+
+    const $modalEl = document.getElementById('modalMercancias');
+    let modal = null;
+    function showModal(){
+      if (!window.bootstrap){
+        window.addEventListener('load', showModal, { once: true });
+        return;
+      }
+      if (!modal) modal = new bootstrap.Modal($modalEl);
+      modal.show();
+    }
+    function hideModal(){ if (modal) modal.hide(); }
+
+    // Cargar tipos de clase 'ajuste' en el selector
+    async function cargarTiposAjuste(){
+      if(!$clase) return;
+      try {
+        const res = await fetch('/api/tipos?clase=ajuste', { credentials: 'include' });
+        if(!res.ok) throw new Error('No se pudo cargar tipos de ajuste');
+        const data = await res.json();
+        if(!Array.isArray(data) || data.length === 0){
+          $clase.innerHTML = '<option value="Ajuste">Ajuste</option>';
+          return;
+        }
+        $clase.innerHTML = data.map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
+      } catch(err){
+        console.error(err);
+        $clase.innerHTML = '<option value="Ajuste">Ajuste</option>';
+      }
+    }
+    cargarTiposAjuste();
+    const $qMerc = document.getElementById('qMerc');
+    const $btnBuscarMerc = document.getElementById('btnBuscarMerc');
+    const $mercResultados = document.getElementById('mercResultados');
+
+    let currentRowIndex = null;
+
+    function fmt(n){
+      const v = Number(n || 0);
+      return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function recomputeTotal(){
+      let total = 0;
+      for(const tr of $detalleBody.querySelectorAll('tr')){
+        const qty = Number(tr.querySelector('input[name="cantidad[]"]').value || 0);
+        const cost = Number(tr.querySelector('input[name="costo[]"]').value || 0);
+        total += qty * cost;
+      }
+      $totalSpan.textContent = fmt(total);
+    }
+
+    function addEmptyRow(){
+      const rowIndex = $detalleBody.querySelectorAll('tr').length;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <input type="hidden" name="mercancia_id[]" />
+          <input type="text" class="form-control form-control-sm" name="merc_codigo" readonly />
+        </td>
+        <td><input type="text" class="form-control form-control-sm" name="merc_nombre" placeholder="Descripción (>=3 letras para buscar)" /></td>
+        <td><input type="text" class="form-control form-control-sm text-end" name="existencia" readonly /></td>
+        <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="costo[]" value="0" /></td>
+        <td><input type="number" step="1" class="form-control form-control-sm text-end" name="cantidad[]" value="0" /></td>
+        <td>
+          <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-primary btnBuscarMerc">Buscar</button>
+            <button type="button" class="btn btn-outline-danger btnEliminar">Eliminar</button>
+          </div>
+        </td>
+      `;
+      $detalleBody.appendChild(tr);
+      tr.querySelector('input[name="cantidad[]"]').addEventListener('input', recomputeTotal);
+      tr.querySelector('input[name="costo[]"]').addEventListener('input', recomputeTotal);
+      tr.querySelector('.btnEliminar').addEventListener('click', () => { tr.remove(); recomputeTotal(); });
+      tr.querySelector('.btnBuscarMerc').addEventListener('click', () => {
+        currentRowIndex = Array.from($detalleBody.querySelectorAll('tr')).indexOf(tr);
+        $qMerc.value = '';
+        $mercResultados.innerHTML = '';
+        showModal();
+      });
+      // Búsqueda automática por descripción cuando haya 3+ letras
+      const $descInput = tr.querySelector('input[name="merc_nombre"]');
+      let descDebounce;
+      $descInput.addEventListener('input', () => {
+        const q = ($descInput.value || '').trim();
+        if (descDebounce) clearTimeout(descDebounce);
+        descDebounce = setTimeout(() => {
+          if(q.length >= 3){
+            currentRowIndex = Array.from($detalleBody.querySelectorAll('tr')).indexOf(tr);
+            $qMerc.value = q;
+            $mercResultados.innerHTML = '';
+            showModal();
+            buscarMerc();
+          }
+        }, 250);
+      });
+    }
+
+    $btnAddLine.addEventListener('click', addEmptyRow);
+    addEmptyRow();
+
+    async function buscarMerc(){
+      const q = ($qMerc.value || '').trim();
+      try {
+        const resp = await fetch(`/api/mercancias?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+        const data = await resp.json();
+        const rows = data.map(m => `
+          <tr>
+            <td>${m.codigo || ''}</td>
+            <td>${m.nombre || ''}</td>
+            <td class="text-end">${m.existencia ?? ''}</td>
+            <td class="text-end">${fmt(m.costo)}</td>
+            <td><button type="button" class="btn btn-sm btn-primary" data-mid="${m.id}" data-codigo="${m.codigo || ''}" data-nombre="${m.nombre || ''}" data-ex="${m.existencia ?? ''}" data-costo="${m.costo ?? 0}">Seleccionar</button></td>
+          </tr>
+        `).join('');
+        $mercResultados.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Código</th><th>Nombre</th><th class="text-end">Existencia</th><th class="text-end">Costo</th><th></th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+        for(const btn of $mercResultados.querySelectorAll('button[data-mid]')){
+          btn.addEventListener('click', () => {
+            const idx = currentRowIndex;
+            const tr = $detalleBody.querySelectorAll('tr')[idx];
+            if (!tr) return;
+            tr.querySelector('input[name="mercancia_id[]"]').value = btn.getAttribute('data-mid');
+            tr.querySelector('input[name="merc_codigo"]').value = btn.getAttribute('data-codigo');
+            tr.querySelector('input[name="merc_nombre"]').value = btn.getAttribute('data-nombre');
+            tr.querySelector('input[name="existencia"]').value = btn.getAttribute('data-ex');
+            tr.querySelector('input[name="costo[]"]').value = btn.getAttribute('data-costo');
+            hideModal();
+          });
+        }
+      } catch (err) {
+        console.error(err);
+        $mercResultados.innerHTML = '<div class="alert alert-danger">Error al buscar mercancías.</div>';
+      }
+    }
+    $btnBuscarMerc.addEventListener('click', buscarMerc);
+
+    // Buscar ajustes
+    const $buscarInput = document.getElementById('buscarInput');
+    const $btnBuscarAjustes = document.getElementById('btnBuscarAjustes');
+    const $buscarResultados = document.getElementById('buscarResultados');
+
+    async function buscarAjustes(){
+      const q = ($buscarInput.value || '').trim();
+      try {
+        const resp = await fetch(`/api/ajustes?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+        if (!resp.ok) throw new Error('No se pudo buscar ajustes');
+        const data = await resp.json();
+        const rows = data.map(a => `
+          <tr>
+            <td><a href="#" class="ajuste-link" data-id="${a.id}">${a.codigo || ''}</a></td>
+            <td>${a.fecha || ''}</td>
+            <td>${a.clase || ''}</td>
+            <td>${a.comentario || ''}</td>
+            <td class="text-end">${fmt(a.total)}</td>
+          </tr>
+        `).join('');
+        $buscarResultados.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Código</th><th>Fecha</th><th>Clase</th><th>Comentario</th><th class="text-end">Total</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+        for(const link of $buscarResultados.querySelectorAll('a.ajuste-link')){
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const id = link.getAttribute('data-id');
+            if (id) mostrarAjusteEnModal(id);
+          });
+        }
+
+      } catch (err){
+        console.error(err);
+        $buscarResultados.innerHTML = '<div class="alert alert-danger">Error al buscar ajustes.</div>';
+      }
+    }
+    $btnBuscarAjustes.addEventListener('click', buscarAjustes);
+
+
+
+    $ajusteForm.addEventListener('submit', function(e){
+      // Validación de motivo/comentario obligatorio (trim)
+      const $comentario = document.getElementById('comentario');
+      const val = ($comentario.value || '').trim();
+      if (!val){
+        e.preventDefault();
+        e.stopPropagation();
+        $comentario.classList.add('is-invalid');
+        $comentario.focus();
+        return;
+      } else {
+        $comentario.classList.remove('is-invalid');
+      }
+      // Recalcular antes de enviar
+      recomputeTotal();
+    });
+
+    // Modal de ajuste (detalles)
+    const $modalAjusteEl = document.getElementById('modalAjusteDetalle');
+    let modalAjuste = null;
+    function showAjusteModal(){
+      if (!window.bootstrap){
+        window.addEventListener('load', showAjusteModal, { once: true });
+        return;
+      }
+      if (!modalAjuste) modalAjuste = new bootstrap.Modal($modalAjusteEl);
+      modalAjuste.show();
+    }
+    function hideAjusteModal(){
+      if (modalAjuste) modalAjuste.hide();
+    }
+
+    async function mostrarAjusteEnModal(id){
+      try {
+        const resp = await fetch(`/api/ajustes/${id}`, { credentials: 'include' });
+        if (!resp.ok) throw new Error('No se pudo obtener el ajuste');
+        const a = await resp.json();
+        const $titulo = document.getElementById('ajusteModalTitulo');
+        const $info = document.getElementById('ajusteModalInfo');
+        const $res = document.getElementById('ajusteModalResultados');
+        $titulo.textContent = `Ajuste ${a.codigo || ''}`;
+        const infoHtml = `
+          <div class="row g-2">
+            <div class="col-md-3"><strong>Fecha:</strong> ${a.fecha || ''}</div>
+            <div class="col-md-3"><strong>Clase:</strong> ${a.clase || ''}</div>
+            <div class="col-md-3"><strong>Estado:</strong> ${a.estado || ''}</div>
+            <div class="col-md-3 text-end"><strong>Total:</strong> ${fmt(a.total)}</div>
+          </div>
+          <div><strong>Comentario:</strong> ${a.comentario || ''}</div>
+        `;
+        $info.innerHTML = infoHtml;
+        const rows = (a.detalles || []).map(d => `
+          <tr>
+            <td>${d.mercancia_codigo || ''}</td>
+            <td>${d.mercancia_nombre || ''}</td>
+            <td class="text-end">${d.existencia ?? ''}</td>
+            <td class="text-end">${fmt(d.costo)}</td>
+            <td class="text-end">${d.cantidad ?? ''}</td>
+          </tr>
+        `).join('');
+        $res.innerHTML = `
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Código</th><th>Descripción</th><th class="text-end">Existencia</th><th class="text-end">Costo</th><th class="text-end">Cantidad</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+        showAjusteModal();
+      } catch(err){
+        console.error(err);
+        const $res = document.getElementById('ajusteModalResultados');
+        $res.innerHTML = '<div class="alert alert-danger">Error al cargar el ajuste.</div>';
+        showAjusteModal();
+      }
+    }
+  })();
+</script>
+{% endblock %}

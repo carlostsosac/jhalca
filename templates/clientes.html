@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+
+<ul class="nav nav-tabs" id="tabs-{{ form_name }}" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar / Editar</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button">Reportes</button>
+  </li>
+</ul>
+
+<div class="tab-content mt-3">
+  <div class="tab-pane fade show active" id="tab-form">
+    <form method="post" id="cliente-form">
+      <input type="hidden" name="id" id="cliente-id">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Nombre</label>
+          <input class="form-control" name="nombre" id="cliente-nombre" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">RNC / ID</label>
+          <input class="form-control" name="rnc" id="cliente-rnc">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Contacto</label>
+          <input class="form-control" name="contacto" id="cliente-contacto">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Teléfono</label>
+          <input class="form-control" name="telefono" id="cliente-telefono">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Dirección</label>
+          <textarea class="form-control" name="direccion" id="cliente-direccion" rows="3"></textarea>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Correo electrónico</label>
+          <input type="email" class="form-control" name="correo" id="cliente-correo">
+        </div>
+      </div>
+      <button class="btn btn-success">Guardar</button>
+      <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+    </form>
+  </div>
+
+  <div class="tab-pane fade" id="tab-buscar">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="input-group mb-3">
+          <input id="buscar-input" class="form-control" placeholder="Escriba para buscar...">
+          <button id="buscar-btn" class="btn btn-primary">Buscar</button>
+        </div>
+      </div>
+    </div>
+    <div id="buscar-resultados">
+      <!-- resultados via fetch / ajax -->
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="tab-reportes">
+    <p>Reportes relacionados a {{ page_title }}:</p>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-primary">Reporte PDF</button>
+      <button class="btn btn-outline-secondary">Exportar Excel</button>
+      <button class="btn btn-outline-info">Listado Detallado</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const buscarBtn = document.getElementById('buscar-btn');
+const buscarInput = document.getElementById('buscar-input');
+const resultadosDiv = document.getElementById('buscar-resultados');
+
+async function buscarClientes(){
+  const q = (buscarInput.value || '').trim();
+  resultadosDiv.innerHTML = '';
+  if(!q){
+    resultadosDiv.innerHTML = '<div class="alert alert-warning">Escriba un nombre para buscar.</div>';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/clientes?q=${encodeURIComponent(q)}`);
+    if(!res.ok) throw new Error('Error al buscar');
+    const data = await res.json();
+    if(data.length === 0){
+      resultadosDiv.innerHTML = '<div class="alert alert-info">No hay resultados.</div>';
+      return;
+    }
+    let html = '<div class="list-group">';
+    for(const c of data){
+      html += `
+      <div class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <div><strong>${c.nombre || ''}</strong></div>
+          <div class="small text-muted">RNC: ${c.rnc || ''} • Contacto: ${c.contacto || ''} • Tel: ${c.telefono || ''} • Correo: ${c.correo || ''}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" data-action="editar" data-id="${c.id}">Editar</button>
+      </div>`;
+    }
+    html += '</div>';
+    resultadosDiv.innerHTML = html;
+  } catch(err){
+    resultadosDiv.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+  }
+}
+
+buscarBtn?.addEventListener('click', function(e){
+  e.preventDefault();
+  buscarClientes();
+});
+
+resultadosDiv?.addEventListener('click', async function(e){
+  const btn = e.target.closest('button[data-action="editar"]');
+  if(!btn) return;
+  const id = btn.getAttribute('data-id');
+  try {
+    const res = await fetch(`/api/clientes/${id}`);
+    if(!res.ok) throw new Error('No se pudo cargar el cliente');
+    const c = await res.json();
+    document.getElementById('cliente-id').value = c.id || '';
+    document.getElementById('cliente-nombre').value = c.nombre || '';
+    document.getElementById('cliente-rnc').value = c.rnc || '';
+    document.getElementById('cliente-contacto').value = c.contacto || '';
+    document.getElementById('cliente-telefono').value = c.telefono || '';
+    document.getElementById('cliente-direccion').value = c.direccion || '';
+    document.getElementById('cliente-correo').value = c.correo || '';
+    const tabTrigger = document.getElementById('form-tab');
+    if(tabTrigger && window.bootstrap){
+      const tab = new bootstrap.Tab(tabTrigger);
+      tab.show();
+    } else {
+      document.getElementById('tab-form')?.scrollIntoView({behavior:'smooth'});
+    }
+  } catch(err){
+    alert('Error al cargar cliente: ' + err.message);
+  }
+});
+
+// Botón "Nuevo" para limpiar y volver a modo creación
+const limpiar = document.getElementById('limpiar-form');
+limpiar?.addEventListener('click', function(){
+  document.getElementById('cliente-id').value = '';
+  document.getElementById('cliente-form').reset();
+});
+</script>
+{% endblock %}

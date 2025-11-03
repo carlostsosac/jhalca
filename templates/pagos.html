@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-3">
+
+  <ul class="nav nav-tabs" id="tabs-pagos" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario de Pago</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar Pagos</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button">Reportes</button>
+    </li>
+  </ul>
+
+  <div class="tab-content pt-3">
+    <div class="tab-pane fade show active" id="tab-form">
+      <form method="post" id="pago-form">
+        <input type="hidden" name="id" id="pago-id">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Código</label>
+            <input class="form-control" name="codigo" id="pago-codigo" placeholder="(auto)" readonly>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Fecha</label>
+            <input type="date" class="form-control" id="fecha" name="fecha" value="{{ current_date.strftime('%Y-%m-%d') }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Forma de Pago</label>
+            <select class="form-select" name="forma_pago" id="forma-pago">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+              <option value="Tarjeta de Crédito/Débito">Tarjeta de Crédito/Débito</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Estado</label>
+            <select class="form-select" name="estado" id="pago-estado">
+              <option value="activo">Activo</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Proveedor</label>
+            <div class="input-group">
+              <input class="form-control" id="proveedor-buscar" placeholder="Escriba para buscar proveedor (>=3 letras)...">
+            </div>
+            <input type="hidden" name="proveedor_id" id="proveedor-id">
+            <div class="form-text" id="proveedor-seleccion"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Comentario</label>
+            <textarea class="form-control" name="comentario" id="pago-comentario" rows="1"></textarea>
+          </div>
+        </div>
+
+        <hr />
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Compras a Pagar</h5>
+          <div>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="agregar-linea">Buscar Compras</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="detalle-tabla">
+            <thead>
+              <tr>
+                <th>Compra</th>
+                <th class="text-end">Balance Actual</th>
+                <th style="width: 10rem" class="text-end">Monto a Aplicar</th>
+                <th style="width: 10rem" class="text-end">Descuento</th>
+                <th style="width: 10rem" class="text-end">Cargo</th>
+                <th style="width: 5rem">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="detalle-body"></tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-end mt-2">
+          <div class="me-4"><strong>Total Descuentos:</strong> <span id="descuentos-span">0.00</span></div>
+          <div class="me-4"><strong>Total Cargos:</strong> <span id="cargos-span">0.00</span></div>
+          <div><strong>Total Pagado:</strong> <span id="total-span">0.00</span></div>
+        </div>
+
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-success">Guardar Pago</button>
+          <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="tab-pane fade" id="tab-buscar">
+      <div class="row g-2 mb-2">
+        <div class="col-md-6">
+          <input type="text" class="form-control" id="buscar-pago-input" placeholder="Buscar por código o comentario" />
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-primary" id="buscar-pago-btn">Buscar</button>
+        </div>
+      </div>
+      <div id="buscar-pago-resultados"></div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-reportes">
+      <p>Reportes relacionados a Pagos a Proveedores:</p>
+      <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-primary" id="btn-reporte-pendientes">Compras Pendientes por Proveedor</button>
+        <button class="btn btn-outline-success" id="btn-reporte-pagos-fecha">Reporte de Pagos por Fecha</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de búsqueda de compras pendientes -->
+<div class="modal fade" id="modalCompras" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buscar Compras Pendientes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="comprasResultados">Cargando compras...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de proveedores -->
+<div class="modal fade" id="modalProveedores" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Buscar Proveedor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group mb-2">
+          <input type="text" class="form-control" id="qProveedor" placeholder="Buscar por nombre (>=3 letras)" />
+          <button class="btn btn-outline-secondary" id="btnBuscarProveedorModal">Buscar</button>
+        </div>
+        <div id="proveedorResultados"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de descarga de PDF -->
+<div class="modal fade" id="pdfDownloadModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">PDF Generado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="pdfModalMessage"></p>
+        <a id="pdfDownloadLink" href="#" class="btn btn-primary" download>Descargar PDF</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reporte Compras Pendientes -->
+<div class="modal fade" id="modalReporteComprasPendientes" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reporte de Compras Pendientes por Proveedor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="reporte-pendientes-body">
+        <!-- Contenido se inyecta con JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reporte Pagos por Fecha -->
+<div class="modal fade" id="modalReportePagosFecha" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Reporte de Pagos por Fecha</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label for="rep-pagos-desde" class="form-label">Desde</label>
+            <input type="date" id="rep-pagos-desde" class="form-control" />
+          </div>
+          <div class="col-sm-6">
+            <label for="rep-pagos-hasta" class="form-label">Hasta</label>
+            <input type="date" id="rep-pagos-hasta" class="form-control" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-generar-pagos-pdf">Generar PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const $detalleBody = document.getElementById('detalle-body');
+  const $agregarLineaBtn = document.getElementById('agregar-linea');
+  const $totalSpan = document.getElementById('total-span');
+  const $descuentosSpan = document.getElementById('descuentos-span');
+  const $cargosSpan = document.getElementById('cargos-span');
+  const $proveedorId = document.getElementById('proveedor-id');
+  const $proveedorSeleccion = document.getElementById('proveedor-seleccion');
+  const $proveedorBuscarInput = document.getElementById('proveedor-buscar');
+
+  const modalCompras = new bootstrap.Modal(document.getElementById('modalCompras'));
+  const modalProveedores = new bootstrap.Modal(document.getElementById('modalProveedores'));
+
+  function fmt(n) {
+    return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function recalcular() {
+    let totalAplicado = 0, totalDescuentos = 0, totalCargos = 0;
+    $detalleBody.querySelectorAll('tr').forEach(tr => {
+      totalAplicado += parseFloat(tr.querySelector('input[name="aplicado[]"]').value || 0);
+      totalDescuentos += parseFloat(tr.querySelector('input[name="descuento[]"]').value || 0);
+      totalCargos += parseFloat(tr.querySelector('input[name="cargo[]"]').value || 0);
+    });
+    $totalSpan.textContent = fmt(totalAplicado);
+    $descuentosSpan.textContent = fmt(totalDescuentos);
+    $cargosSpan.textContent = fmt(totalCargos);
+  }
+
+  function addCompraRow(compra) {
+    if (document.querySelector(`input[name="compra_id[]"][value="${compra.id}"]`)) {
+      alert('Esa compra ya está en el detalle.');
+      return;
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <input type="hidden" name="compra_id[]" value="${compra.id}" />
+        ${compra.codigo} (${compra.fecha})
+      </td>
+      <td class="text-end">${fmt(compra.balance)}</td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="aplicado[]" value="${compra.balance}" /></td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="descuento[]" value="0" /></td>
+      <td><input type="number" step="0.01" class="form-control form-control-sm text-end" name="cargo[]" value="0" /></td>
+      <td><button type="button" class="btn btn-outline-danger btn-sm btnEliminar">X</button></td>
+    `;
+    $detalleBody.appendChild(tr);
+    tr.querySelector('.btnEliminar').addEventListener('click', () => { tr.remove(); recalcular(); });
+    tr.querySelectorAll('input').forEach(input => input.addEventListener('input', recalcular));
+    recalcular();
+  }
+
+  $agregarLineaBtn.addEventListener('click', async () => {
+    const pid = $proveedorId.value;
+    if (!pid) {
+      alert('Por favor, seleccione un proveedor primero.');
+      return;
+    }
+    const $resultados = document.getElementById('comprasResultados');
+    $resultados.innerHTML = 'Cargando...';
+    modalCompras.show();
+
+    try {
+      const resp = await fetch(`/api/compras_por_pagar?proveedor_id=${pid}`);
+      const compras = await resp.json();
+      if (compras.length === 0) {
+        $resultados.innerHTML = '<div class="alert alert-info">Este proveedor no tiene compras pendientes.</div>';
+        return;
+      }
+      const rows = compras.map(c => `
+        <tr>
+          <td>${c.codigo}</td>
+          <td>${c.fecha}</td>
+          <td class="text-end">${fmt(c.total)}</td>
+          <td class="text-end">${fmt(c.balance)}</td>
+          <td><button type="button" class="btn btn-sm btn-primary btn-seleccionar-compra" data-compra='${JSON.stringify(c)}'>Aplicar</button></td>
+        </tr>
+      `).join('');
+      $resultados.innerHTML = `
+        <table class="table table-sm">
+          <thead><tr><th>Código</th><th>Fecha</th><th class="text-end">Total</th><th class="text-end">Balance</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      $resultados.querySelectorAll('.btn-seleccionar-compra').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const compraData = JSON.parse(btn.dataset.compra);
+          addCompraRow(compraData);
+          modalCompras.hide();
+        });
+      });
+    } catch (err) {
+      $resultados.innerHTML = '<div class="alert alert-danger">Error al cargar compras.</div>';
+    }
+  });
+
+  // --- Búsqueda de Proveedores ---
+  const $qProveedor = document.getElementById('qProveedor');
+  const $btnBuscarProveedorModal = document.getElementById('btnBuscarProveedorModal');
+  const $proveedorResultados = document.getElementById('proveedorResultados');
+
+  let proveedorSearchDebounce;
+  $proveedorBuscarInput.addEventListener('input', () => {
+      const q = ($proveedorBuscarInput.value || '').trim();
+      if (proveedorSearchDebounce) clearTimeout(proveedorSearchDebounce);
+      proveedorSearchDebounce = setTimeout(() => {
+        if(q.length >= 3){
+          $qProveedor.value = q;
+          $proveedorResultados.innerHTML = '';
+          modalProveedores.show();
+          buscarProveedores();
+        }
+      }, 300);
+    });
+
+  async function buscarProveedores() {
+    const q = ($qProveedor.value || '').trim();
+    if (q.length < 3) {
+      $proveedorResultados.innerHTML = '<div class="alert alert-info">Escriba al menos 3 letras.</div>';
+      return;
+    }
+    const resp = await fetch(`/api/proveedores?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    const rows = data.map(p => `
+      <tr>
+        <td>${p.nombre || ''}</td>
+        <td>${p.rnc || ''}</td>
+        <td><button type="button" class="btn btn-sm btn-primary" data-pid="${p.id}" data-nombre="${p.nombre || ''}" data-rnc="${p.rnc || ''}">Seleccionar</button></td>
+      </tr>`).join('');
+    $proveedorResultados.innerHTML = `<table class="table table-sm"><thead><tr><th>Nombre</th><th>RNC</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    
+    $proveedorResultados.querySelectorAll('button[data-pid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if ($proveedorId.value !== btn.dataset.pid) {
+          $detalleBody.innerHTML = '';
+          recalcular();
+        }
+        $proveedorId.value = btn.dataset.pid;
+        $proveedorSeleccion.textContent = `${btn.dataset.nombre} (RNC: ${btn.dataset.rnc})`;
+        $proveedorBuscarInput.value = btn.dataset.nombre;
+        modalProveedores.hide();
+      });
+    });
+  }
+  $btnBuscarProveedorModal.addEventListener('click', buscarProveedores);
+  $qProveedor.addEventListener('input', () => { if ($qProveedor.value.trim().length >= 3) buscarProveedores(); });
+
+  // Limpiar formulario
+  document.getElementById('limpiar-form').addEventListener('click', function() {
+    document.getElementById('pago-form').reset();
+    $detalleBody.innerHTML = '';
+    $proveedorId.value = '';
+    $proveedorSeleccion.textContent = '';
+    recalcular();
+  });
+
+  // Modal de PDF
+  const flashMessages = document.querySelectorAll('.alert.alert-success');
+  let pdfFilename = null;
+  flashMessages.forEach(msg => {
+    const match = msg.textContent.match(/PDF generado: (pago_.*\.pdf)/);
+    if (match && match[1]) {
+      pdfFilename = match[1];
+      msg.style.display = 'none';
+    }
+  });
+
+  if (pdfFilename) {
+    const pdfModal = new bootstrap.Modal(document.getElementById('pdfDownloadModal'));
+    const link = document.getElementById('pdfDownloadLink');
+    link.href = `/static/pdfs/${pdfFilename}`;
+    link.download = pdfFilename;
+    document.getElementById('pdfModalMessage').textContent = `Pago guardado. ¿Deseas descargar el recibo ${pdfFilename}?`;
+    pdfModal.show();
+  }
+
+  // --- Búsqueda de Pagos ---
+  const buscarPagoBtn = document.getElementById('buscar-pago-btn');
+  const buscarPagoInput = document.getElementById('buscar-pago-input');
+  const buscarPagoResultados = document.getElementById('buscar-pago-resultados');
+
+  buscarPagoBtn?.addEventListener('click', async function(e){
+    e.preventDefault();
+    const q = (buscarPagoInput.value || '').trim();
+    buscarPagoResultados.innerHTML = 'Buscando...';
+    try{
+      const res = await fetch(`/api/pagos?q=${encodeURIComponent(q)}`);
+      if(!res.ok) throw new Error('Error al buscar pagos');
+      const data = await res.json();
+      if(data.length === 0){ 
+          buscarPagoResultados.innerHTML = '<div class="alert alert-info">No hay resultados.</div>'; 
+          return; 
+      }
+      let html = '<div class="list-group">';
+      for(const p of data){
+        html += `<div class="list-group-item d-flex justify-content-between align-items-center">
+          <div class="flex-grow-1">
+            <div><strong>Código: ${p.codigo || ''}</strong> — Fecha: ${p.fecha || ''}</div>
+            <div class="small text-muted">Proveedor: ${p.proveedor_nombre || 'N/A'} • Total: ${fmt(p.total)}</div>
+          </div>
+          <a href="/static/pdfs/pago_${p.codigo}.pdf" class="btn btn-sm btn-info" download target="_blank">PDF</a>
+        </div>`;
+      }
+      html += '</div>';
+      buscarPagoResultados.innerHTML = html;
+    }catch(err){ 
+        buscarPagoResultados.innerHTML = `<div class="alert alert-danger">${err.message}</div>`; }
+  });
+
+  // --- Reporte de Compras Pendientes ---
+  const modalReportePendientes = new bootstrap.Modal(document.getElementById('modalReporteComprasPendientes'));
+  const btnReportePendientes = document.getElementById('btn-reporte-pendientes');
+  const reporteBody = document.getElementById('reporte-pendientes-body');
+
+  btnReportePendientes?.addEventListener('click', async function() {
+    reporteBody.innerHTML = 'Cargando reporte...';
+    modalReportePendientes.show();
+    try {
+      const res = await fetch('/api/reportes/compras_pendientes_agrupadas');
+      if (!res.ok) throw new Error('Error al cargar el reporte');
+      const proveedores = await res.json();
+
+      if (proveedores.length === 0) {
+        reporteBody.innerHTML = '<div class="alert alert-info">No hay compras pendientes de pago.</div>';
+        return;
+      }
+
+      let html = '';
+      for (const prov of proveedores) {
+        html += `<div class="mb-4">
+          <h5>${prov.nombre} <small class="text-muted">(RNC: ${prov.rnc || 'N/A'})</small></h5>
+          <table class="table table-sm table-bordered">
+            <thead class="table-light"><tr><th>Código Compra</th><th>Fecha</th><th class="text-end">Balance Pendiente</th></tr></thead>
+            <tbody>`;
+        for (const compra of prov.compras) {
+          html += `<tr><td>${compra.codigo}</td><td>${compra.fecha}</td><td class="text-end">${fmt(compra.balance)}</td></tr>`;
+        }
+        html += `</tbody>
+          <tfoot><tr><td colspan="2" class="text-end"><strong>Total Proveedor:</strong></td><td class="text-end"><strong>${fmt(prov.total_balance)}</strong></td></tr></tfoot>
+          </table></div>`;
+      }
+      reporteBody.innerHTML = html;
+    } catch (err) {
+      reporteBody.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+    }
+  });
+
+  // --- Reporte de Pagos por Fecha ---
+  const modalReportePagos = new bootstrap.Modal(document.getElementById('modalReportePagosFecha'));
+  const btnAbrirModalPagos = document.getElementById('btn-reporte-pagos-fecha');
+  const btnGenerarPdfPagos = document.getElementById('btn-generar-pagos-pdf');
+  const $desdePagos = document.getElementById('rep-pagos-desde');
+  const $hastaPagos = document.getElementById('rep-pagos-hasta');
+
+  btnAbrirModalPagos?.addEventListener('click', function() {
+    const today = new Date().toISOString().split('T')[0];
+    $desdePagos.value = today;
+    $hastaPagos.value = today;
+    modalReportePagos.show();
+  });
+
+  btnGenerarPdfPagos?.addEventListener('click', function() {
+    const desde = $desdePagos.value;
+    const hasta = $hastaPagos.value;
+    if (!desde || !hasta) {
+      alert('Por favor, seleccione un rango de fechas.');
+      return;
+    }
+    const params = new URLSearchParams({ desde, hasta });
+    const url = `/pagos/reporte_pdf?${params.toString()}`;
+    window.open(url, '_blank');
+    modalReportePagos.hide();
+  });
+});
+</script>
+{% endblock %}

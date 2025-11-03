@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block content %}
+
+<ul class="nav nav-tabs" id="tabs-{{ form_name }}" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar / Editar</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button">Reportes</button>
+  </li>
+</ul>
+
+<div class="tab-content mt-3">
+  <div class="tab-pane fade show active" id="tab-form">
+    <form method="post" id="proveedor-form">
+      <input type="hidden" name="id" id="proveedor-id">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Nombre</label>
+          <input class="form-control" name="nombre" id="proveedor-nombre" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">RNC / ID</label>
+          <input class="form-control" name="rnc" id="proveedor-rnc">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Dirección</label>
+          <textarea class="form-control" name="direccion" id="proveedor-direccion" rows="3"></textarea>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Correo electrónico</label>
+          <input type="email" class="form-control" name="correo" id="proveedor-correo">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Nombre de Contacto</label>
+          <input class="form-control" name="contacto" id="proveedor-contacto">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Teléfono</label>
+          <input class="form-control" name="telefono" id="proveedor-telefono">
+        </div>
+      </div>
+      <button class="btn btn-success">Guardar</button>
+      <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+    </form>
+  </div>
+
+  <div class="tab-pane fade" id="tab-buscar">
+    <div class="row">
+      <div class="col-md-6">
+        <div class="input-group mb-3">
+          <input id="buscar-input" class="form-control" placeholder="Escriba para buscar...">
+          <button id="buscar-btn" class="btn btn-primary">Buscar</button>
+        </div>
+      </div>
+    </div>
+    <div id="buscar-resultados">
+      <!-- resultados via fetch / ajax -->
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="tab-reportes">
+    <p>Reportes relacionados a {{ page_title }}:</p>
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-primary">Reporte PDF</button>
+      <button class="btn btn-outline-secondary">Exportar Excel</button>
+      <button class="btn btn-outline-info">Listado Detallado</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const buscarBtn = document.getElementById('buscar-btn');
+const buscarInput = document.getElementById('buscar-input');
+const resultadosDiv = document.getElementById('buscar-resultados');
+
+async function buscarProveedores(){
+  const q = (buscarInput.value || '').trim();
+  resultadosDiv.innerHTML = '';
+  if(!q){
+    resultadosDiv.innerHTML = '<div class="alert alert-warning">Escriba un nombre para buscar.</div>';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/proveedores?q=${encodeURIComponent(q)}`);
+    if(!res.ok) throw new Error('Error al buscar');
+    const data = await res.json();
+    if(data.length === 0){
+      resultadosDiv.innerHTML = '<div class="alert alert-info">No hay resultados.</div>';
+      return;
+    }
+    let html = '<div class="list-group">';
+    for(const p of data){
+      html += `
+      <div class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          <div><strong>${p.nombre || ''}</strong></div>
+          <div class="small text-muted">RNC: ${p.rnc || '—'}</div>
+          <div class="small text-muted">Dirección: ${p.direccion || '—'} • Correo: ${p.correo || '—'}</div>
+          <div class="small text-muted">Contacto: ${p.contacto || '—'} • Teléfono: ${p.telefono || '—'}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" data-action="editar" data-id="${p.id}">Editar</button>
+      </div>`;
+    }
+    html += '</div>';
+    resultadosDiv.innerHTML = html;
+  } catch(err){
+    resultadosDiv.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+  }
+}
+
+buscarBtn?.addEventListener('click', function(e){
+  e.preventDefault();
+  buscarProveedores();
+});
+
+resultadosDiv?.addEventListener('click', async function(e){
+  const btn = e.target.closest('button[data-action="editar"]');
+  if(!btn) return;
+  const id = btn.getAttribute('data-id');
+  try {
+    const res = await fetch(`/api/proveedores/${id}`);
+    if(!res.ok) throw new Error('No se pudo cargar el proveedor');
+    const p = await res.json();
+    document.getElementById('proveedor-id').value = p.id || '';
+    document.getElementById('proveedor-nombre').value = p.nombre || '';
+    document.getElementById('proveedor-rnc').value = p.rnc || '';
+    document.getElementById('proveedor-direccion').value = p.direccion || '';
+    document.getElementById('proveedor-correo').value = p.correo || '';
+    document.getElementById('proveedor-contacto').value = p.contacto || '';
+    document.getElementById('proveedor-telefono').value = p.telefono || '';
+    const tabTrigger = document.getElementById('form-tab');
+    if(tabTrigger && window.bootstrap){
+      const tab = new bootstrap.Tab(tabTrigger);
+      tab.show();
+    } else {
+      document.getElementById('tab-form')?.scrollIntoView({behavior:'smooth'});
+    }
+  } catch(err){
+    alert('Error al cargar proveedor: ' + err.message);
+  }
+});
+
+// Botón "Nuevo" para limpiar y volver a modo creación
+const limpiar = document.getElementById('limpiar-form');
+limpiar?.addEventListener('click', function(){
+  document.getElementById('proveedor-id').value = '';
+  document.getElementById('proveedor-form').reset();
+});
+</script>
+{% endblock %}
