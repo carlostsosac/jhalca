@@ -323,8 +323,8 @@ def ajusteinv():
             if not auto_codigo:
                 # Asegurar que existe la fila de 'ajuste'; si no, crearla
                 try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('AJ', 1, 'ajuste') ON DUPLICATE KEY UPDATE clase=clase;"))
-                    db.session.flush()
+                    # Sintaxis para PostgreSQL
+                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('AJ', 1, 'ajuste') ON CONFLICT (clase) DO NOTHING;"))
                 except Exception: # Ignorar si ya existe
                     pass
                 
@@ -419,8 +419,8 @@ def facturas():
             auto_codigo = codigo
             if not auto_codigo:
                 try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('F', 1, 'factura') ON DUPLICATE KEY UPDATE clase=clase;"))
-                    db.session.flush()
+                    # Sintaxis para PostgreSQL
+                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('F', 1, 'factura') ON CONFLICT (clase) DO NOTHING;"))
                 except Exception:
                     pass
 
@@ -708,8 +708,8 @@ def devoluciones():
             prefix_default = 'DV' if tipo == 'venta' else 'DC'
             
             try:
-                db.session.execute(text(f"INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('{prefix_default}', 1, '{clase_secuencia}') ON DUPLICATE KEY UPDATE clase=clase;"))
-                db.session.flush()
+                # Sintaxis para PostgreSQL
+                db.session.execute(text(f"INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('{prefix_default}', 1, '{clase_secuencia}') ON CONFLICT (clase) DO NOTHING;"))
             except Exception:
                 pass
             
@@ -878,8 +878,7 @@ def cobros():
             if not auto_codigo:
                 # Usar una secuencia para 'cobro'
                 try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('RC', 1, 'cobro') ON DUPLICATE KEY UPDATE clase=clase;"))
-                    db.session.flush()
+                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('RC', 1, 'cobro') ON CONFLICT (clase) DO NOTHING;"))
                 except Exception:
                     pass
                 row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': 'cobro'}).fetchone()
@@ -1041,8 +1040,7 @@ def pagos():
             auto_codigo = codigo
             if not auto_codigo:
                 try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('PA', 1, 'pago') ON DUPLICATE KEY UPDATE clase=clase;"))
-                    db.session.flush()
+                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('PA', 1, 'pago') ON CONFLICT (clase) DO NOTHING;"))
                 except Exception:
                     pass
 
@@ -1332,8 +1330,7 @@ def compras():
             auto_codigo = codigo
             if not auto_codigo:
                 try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('CM', 1, 'compra') ON DUPLICATE KEY UPDATE clase=clase;"))
-                    db.session.flush()
+                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('CM', 1, 'compra') ON CONFLICT (clase) DO NOTHING;"))
                 except Exception:
                     pass
 
@@ -1879,7 +1876,7 @@ def crear_tablas():
             {'codigo': 'G', 'secuencia': 1, 'clase': 'gasto'}
         ]
         for s in secuencias_iniciales:
-            db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES (:codigo, :secuencia, :clase) ON DUPLICATE KEY UPDATE clase=clase;"), s)
+            db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES (:codigo, :secuencia, :clase) ON CONFLICT (clase) DO NOTHING;"), s)
         
         # Sembrar datos iniciales en la tabla 'empresa' si está vacía
         if db.session.query(Empresa).count() == 0:
@@ -2089,8 +2086,7 @@ def gastos():
                 auto_codigo = (codigo or '').strip()
                 if not auto_codigo:
                     try:
-                        db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('G', 1, 'gasto') ON DUPLICATE KEY UPDATE clase=clase;"))
-                        db.session.flush()
+                        db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('G', 1, 'gasto') ON CONFLICT (clase) DO NOTHING;"))
                     except Exception:
                         pass
 

@@ -23,7 +23,7 @@ if __name__ == "__main__":
                 {'codigo': 'G', 'secuencia': 1, 'clase': 'gasto'}
             ]
             for s in secuencias_iniciales:
-                db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES (:codigo, :secuencia, :clase) ON DUPLICATE KEY UPDATE clase=clase;"), s)
+                db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES (:codigo, :secuencia, :clase) ON CONFLICT (clase) DO NOTHING;"), s)
             db.session.commit()
             print("Datos de secuencias sembrados correctamente.")
 
