@@ -19,10 +19,10 @@ SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
 # Si DATABASE_URL no está definida (desarrollo local sin .env), se puede construir una:
 if not SQLALCHEMY_DATABASE_URI:
     driver = os.getenv("DB_DRIVER", "postgresql+psycopg2")
-    server = os.getenv("DB_SERVER", "localhost")
+    server = os.getenv("DB_SERVER", "dpg-d44ah1a4d50c738891pg-a")
     database = os.getenv("DB_NAME", "jhalca")
-    username = os.getenv("DB_USER", "postgres") # Usuario común en postgres
-    password = os.getenv("DB_PASSWORD", "password") # Cambiar por tu clave
+    username = os.getenv("DB_USER", "jhalca_user") # Usuario común en postgres
+    password = os.getenv("DB_PASSWORD", "M8rDEkFHSQLQqV9z1bTBYpNPZcCL2hcQ") # Cambiar por tu clave
     SQLALCHEMY_DATABASE_URI = f"{driver}://{username}:{quote_plus(password)}@{server}/{database}"
 
 # ===== CONFIGURACIÓN DE FLASK =====
