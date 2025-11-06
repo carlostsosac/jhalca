@@ -4,7 +4,7 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from config import SQLALCHEMY_DATABASE_URI, SECRET_KEY, PDF_FOLDER, SQLALCHEMY_ENGINE_OPTIONS, UPLOAD_FOLDER
 from models import db, User, Role, Permission, Cliente, Mercancia, Tipo, Gasto, AjusteC, AjusteD, FacturaC, FacturaD, ComprasC, ComprasD, CobroC, CobroD, PagoC, PagoD, DevolucionC, DevolucionD, Empresa
 from decorators import role_required, permission_required
-import os
+from sqlalchemy import func
 from io import BytesIO
 from datetime import datetime, date
 from decimal import Decimal
@@ -37,7 +37,27 @@ def load_user(user_id):
 @app.route('/')
 @login_required
 def index():
-    return render_template('index.html')
+    # Obtener datos de la empresa
+    empresa = Empresa.query.get(1)
+
+    # Obtener algunas estadísticas para el dashboard
+    total_clientes = db.session.query(func.count(Cliente.id)).scalar() or 0
+    total_mercancias = db.session.query(func.count(Mercancia.id)).scalar() or 0
+    
+    # Suma del total para facturas que no son cotizaciones ni están canceladas.
+    # Esto representa las ventas reales.
+    estados_de_venta = ['facturado', 'credito', 'pagado'] # Agrega otros estados que consideres una venta
+    total_ventas = db.session.query(func.sum(FacturaC.total)).filter(FacturaC.estado.in_(estados_de_venta)).scalar() or Decimal('0.0')
+    
+    # Suma del balance pendiente de cobro
+    total_por_cobrar = db.session.query(func.sum(FacturaC.balance)).filter(FacturaC.balance > 0).scalar() or Decimal('0.0')
+
+    return render_template('index.html', 
+                           empresa=empresa,
+                           total_clientes=total_clientes,
+                           total_mercancias=total_mercancias,
+                           total_ventas=total_ventas,
+                           total_por_cobrar=total_por_cobrar)
 
 @app.route('/login', methods=['GET','POST'])
 def login():
@@ -59,6 +79,12 @@ def logout():
     logout_user()
     flash('Sesión cerrada.', 'info')
     return redirect(url_for('login'))
+
+@app.route('/access-denied')
+@login_required
+def access_denied():
+    # Devuelve la plantilla de acceso denegado con un código de estado HTTP 403
+    return render_template('access_denied.html'), 403
 
 # === USUARIOS Y ROLES ===
 @app.route('/usuarios', methods=['GET','POST'])
@@ -543,6 +569,7 @@ def facturas():
         cliente_id = request.form.get('cliente_id')
         comentario = (request.form.get('comentario') or '').strip()
         estado = (request.form.get('estado') or 'cotizado').strip()
+        estado = 'facturado' # Siempre se guarda como 'facturado'
         descuento_str = request.form.get('descuento') or '0'
         subtotal = 0.0
 

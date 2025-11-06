@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Acceso Denegado{% endblock %}
+
+{% block content %}
+<div class="container text-center py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <i class="fas fa-exclamation-triangle fa-5x text-warning mb-4"></i>
+      <h1 class="display-4">Acceso Denegado</h1>
+      <p class="lead">Lo sentimos, no tienes los permisos necesarios para ver esta página.</p>
+      <hr class="my-4">
+      <p>Si crees que esto es un error, por favor contacta al administrador del sistema.</p>
+      <a href="{{ url_for('index') }}" class="btn btn-primary mt-3">Ir a la Página de Inicio</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

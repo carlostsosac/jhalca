@@ -1,5 +1,60 @@
 {% extends "base.html" %}
 {% block content %}
-<h2>Bienvenido a la aplicación</h2>
-<p>Use el menú lateral para navegar.</p>
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">MENÚ</h1>
+  </div>
+
+  <!-- Tarjeta de bienvenida con datos de la empresa -->
+  <div class="card mb-4">
+    <div class="card-header">
+      Bienvenido a la aplicación
+    </div>
+    <div class="card-body">
+      {% if empresa %}
+        <div class="d-flex align-items-center">
+          {% if empresa.logo %}
+            <img src="{{ url_for('static', filename='uploads/' + empresa.logo) }}" alt="Logo Empresa" class="me-3" style="max-height: 60px; border-radius: 4px;">
+          {% endif %}
+          <div>
+            <h5 class="card-title mb-1">{{ empresa.nombrec or 'Nombre de la Empresa' }}</h5>
+            <p class="card-text mb-0">
+              <strong>RNC:</strong> {{ empresa.rnc or 'No especificado' }}
+            </p>
+            <p class="card-text mb-0">
+              <strong>Dirección:</strong> {{ empresa.direccionc or 'No especificada' }}
+            </p>
+          </div>
+        </div>
+      {% else %}
+        <h5 class="card-title">Nombre de la Empresa</h5>
+        <p class="card-text">Configure los datos de su empresa en el menú de Configuración.</p>
+      {% endif %}
+      <p>Use el menú lateral para navegar por las diferentes secciones del sistema.</p>
+    </div>
+  </div>
+
+  <!-- Tarjetas de estadísticas -->
+  <div class="row">
+    <div class="col-md-3 mb-3">
+      <div class="card text-white bg-primary h-100">
+        <div class="card-body">
+          <h5 class="card-title"><i class="bi bi-cash-coin me-2"></i>Ventas Totales</h5>
+          <p class="card-text fs-4">RD$ {{ "{:,.2f}".format(total_ventas) }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-white bg-warning h-100">
+        <div class="card-body">
+          <h5 class="card-title"><i class="bi bi-hourglass-split me-2"></i>Cuentas por Cobrar</h5>
+          <p class="card-text fs-4">RD$ {{ "{:,.2f}".format(total_por_cobrar) }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3"><div class="card text-dark bg-light h-100"><div class="card-body"><h5 class="card-title"><i class="bi bi-people-fill me-2"></i>Clientes Registrados</h5><p class="card-text fs-4">{{ "{:,}".format(total_clientes) }}</p></div></div></div>
+    <div class="col-md-3 mb-3"><div class="card text-dark bg-light h-100"><div class="card-body"><h5 class="card-title"><i class="bi bi-box-seam me-2"></i>Productos/Servicios</h5><p class="card-text fs-4">{{ "{:,}".format(total_mercancias) }}</p></div></div></div>
+  </div>
+
+</div>
 {% endblock %}

@@ -82,7 +82,12 @@
     </div>
 
 <div class="topbar d-flex align-items-center justify-content-between px-3 py-2 bg-dark text-white">
-  <h4 class="m-0 text-start">{{ page_title }}</h3>
+  <div class="d-flex align-items-center">
+    <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary me-3" title="Ir al Inicio">
+      <span class="text-white">🏠 IR AL INICIO</span>
+    </a>
+    <h4 class="m-0 text-start">{{ page_title }}</h4>
+  </div>
 
   {% if current_user.is_authenticated %}
     <div class="d-flex align-items-center">

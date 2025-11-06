@@ -22,8 +22,8 @@ def permission_required(permission_name):
                 return redirect(url_for('login'))
             
             if not current_user.has_permission(permission_name):
-                flash('No tiene los permisos necesarios para acceder a esta página.', 'danger')
-                return redirect(url_for('index'))
+                # No es necesario un mensaje flash, la página de acceso denegado ya lo explica.
+                return redirect(url_for('access_denied'))
             return f(*args, **kwargs)
         return decorated_function
     return decorator
