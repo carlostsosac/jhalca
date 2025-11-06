@@ -1915,3 +1915,7 @@ def configuracion():
         page_title='Configuración',
         form_name='configuracion',
     )
+
+if __name__ == '__main__':
+    # El modo debug es útil para desarrollo, ya que reinicia el servidor con cada cambio.
+    app.run(debug=True)
