@@ -41,17 +41,9 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 PDF_FOLDER = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'pdfs')
 
 if __name__ == '__main__':
-    # Este bloque solo se ejecutará cuando el script se ejecute directamente
-    # Es útil para depurar los valores de configuración
-    print(f"SQLALCHEMY_DATABASE_URI: {SQLALCHEMY_DATABASE_URI}")
-    print(f"SECRET_KEY: {'*' * len(SECRET_KEY) if SECRET_KEY else 'No Establecida'}")
-    print(f"PDF_FOLDER: {PDF_FOLDER}")
-    print("Archivo de configuración ejecutado directamente para depuración.")
-
-if __name__ == '__main__':
     # This block will only run when the script is executed directly
     # It's useful for debugging the configuration values
     print(f"SQLALCHEMY_DATABASE_URI: {SQLALCHEMY_DATABASE_URI}")
-    print(f"SECRET_KEY: {'*' * len(SECRET_KEY) if SECRET_KEY else 'Not Set'}")
+    print(f"SECRET_KEY: {'*' * len(SECRET_KEY) if SECRET_KEY else 'No establecido'}")
     print(f"PDF_FOLDER: {PDF_FOLDER}")
-    print("Configuration file executed directly for debugging.")
+    print("Archivo de configuración ejecutado para depuración.")

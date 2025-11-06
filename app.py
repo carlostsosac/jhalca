@@ -1821,6 +1821,30 @@ def gastos():
     # Para el método GET, simplemente renderiza la plantilla
     return render_template('gastos.html', page_title='Gastos', form_name='gastos', current_date=date.today())
 
+# === API: Buscar gastos por fecha para reportes ===
+@app.route('/api/gastos/por_fecha')
+@login_required
+def api_gastos_por_fecha():
+    desde_str = request.args.get('desde')
+    hasta_str = request.args.get('hasta')
+    
+    query = Gasto.query.join(Tipo, Gasto.clase_id == Tipo.id, isouter=True)
+
+    if desde_str:
+        query = query.filter(Gasto.fecha >= datetime.strptime(desde_str, '%Y-%m-%d').date())
+    if hasta_str:
+        query = query.filter(Gasto.fecha <= datetime.strptime(hasta_str, '%Y-%m-%d').date())
+    
+    gastos = query.order_by(Gasto.fecha.asc(), Gasto.codigo.asc()).all()
+    return jsonify([{
+        'codigo': g.codigo,
+        'fecha': g.fecha.isoformat() if g.fecha else None,
+        'descripcion': g.descripcion,
+        'monto': float(g.monto or 0),
+        'documento': g.documento,
+        'clase': g.clase.nombre if g.clase else 'Sin clase'
+    } for g in gastos])
+
 # === API: Obtener tipos de gastos para selector ===
 @app.route('/api/tipos/gasto')
 @login_required
