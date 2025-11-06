@@ -67,7 +67,7 @@ def login():
         user = User.authenticate(username, password)
         if user:
             login_user(user)
-            flash('Inicio de sesión exitoso.', 'success')
+            # flash('Inicio de sesión exitoso.', 'success')
             return redirect(url_for('index'))
         else:
             flash('Usuario o clave inválida.', 'danger')
@@ -696,74 +696,12 @@ def facturas():
                         flash(f"Advertencia: Existencia de '{merc.nombre}' es negativa ({merc.existencia}).", 'warning')
 
             db.session.commit()
-            
-
-            # Generar PDF de la factura
-            try:
-                # Obtener datos completos de la factura para el PDF
-                factura_completa = FacturaC.query.get(factura.id)
-                empresa = Empresa.query.get(1) # Obtener datos de la empresa
-                cliente_factura = Cliente.query.get(factura_completa.cliente_id)
-
-                logo_path = None
-                if empresa and empresa.logo:
-                    logo_path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
-                    if not os.path.exists(logo_path):
-                        logo_path = None # No pasar la ruta si el archivo no existe
-
-                invoice_data = {
-                    'codigo': factura_completa.codigo,
-                    'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
-                    'empresa_rnc': empresa.rnc if empresa else '',
-                    'empresa_direccion': empresa.direccionc if empresa else '',
-                    'empresa_logo_path': logo_path,
-                    'fecha': factura_completa.fecha.strftime('%Y-%m-%d'),
-                    'cliente_nombre': cliente_factura.nombre if cliente_factura else 'N/A',
-                    'cliente_rnc': cliente_factura.rnc if cliente_factura else 'N/A',
-                    'condicion': factura_completa.condicion,
-                    'comentario': factura_completa.comentario,
-                    'subtotal': factura_completa.subtotal,
-                    'descuento': factura_completa.descuento,
-                    'itbis': factura_completa.itbis,
-                    'total': factura_completa.total,
-                    'detalles': []
-                }
-
-                detalles_factura = FacturaD.query.filter_by(factura_id=factura.id).all()
-                for det in detalles_factura:
-                    mercancia_detalle = Mercancia.query.get(det.mercancia_id)
-                    invoice_data['detalles'].append({
-                        'mercancia_codigo': mercancia_detalle.codigo if mercancia_detalle else 'N/A',
-                        'mercancia_nombre': mercancia_detalle.nombre if mercancia_detalle else 'N/A',
-                        'cantidad': det.cantidad,
-                        'precio': det.precio,
-                        'importe': det.importe
-                    })
-
-                # Generar el PDF en memoria
-                buffer = io.BytesIO()
-                generate_invoice_pdf(invoice_data, buffer)
-                buffer.seek(0)
-
-                pdf_filename = f"factura_{factura.codigo}.pdf"
-                pdf_path = os.path.join(app.root_path, 'static', 'pdfs', pdf_filename)
-
-                # Asegurarse de que el directorio static/pdfs exista
-                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-
-                with open(pdf_path, 'wb') as f:
-                    f.write(buffer.getvalue())
-
-                flash(f'Factura guardada correctamente. PDF generado: {pdf_filename}', 'success')
-                return redirect(url_for('facturas'))
-
-            except Exception as e:
-                flash(f'Error al generar PDF de la factura: {e}', 'warning')
-                return redirect(url_for('facturas'))
+            flash(f'Factura {factura.codigo} guardada correctamente.', 'success')
 
         except Exception as e:
             db.session.rollback()
             flash(f'Error al guardar factura: {e}', 'danger')
+        
         return redirect(url_for('facturas'))
 
     return render_template('facturas.html', page_title='Facturas', form_name='facturas', current_date=date.today())
@@ -859,6 +797,58 @@ def api_factura(id):
         'detalles': det_out,
     })
 
+# === RUTA PARA GENERAR PDF DE FACTURA AL VUELO ===
+@app.route('/factura/<int:id>/pdf')
+@login_required
+def factura_pdf(id):
+    factura = FacturaC.query.get_or_404(id)
+    empresa = Empresa.query.get(1)
+    cliente = Cliente.query.get(factura.cliente_id) if factura.cliente_id else None
+
+    logo_path = None
+    if empresa and empresa.logo:
+        path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
+        if os.path.exists(path):
+            logo_path = path
+
+    invoice_data = {
+        'codigo': factura.codigo,
+        'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
+        'empresa_rnc': empresa.rnc if empresa else '',
+        'empresa_direccion': empresa.direccionc if empresa else '',
+        'empresa_logo_path': logo_path,
+        'fecha': factura.fecha.strftime('%Y-%m-%d') if factura.fecha else '',
+        'cliente_nombre': cliente.nombre if cliente else 'N/A',
+        'cliente_rnc': cliente.rnc if cliente else 'N/A',
+        'condicion': factura.condicion,
+        'comentario': factura.comentario,
+        'subtotal': factura.subtotal,
+        'descuento': factura.descuento,
+        'itbis': factura.itbis,
+        'total': factura.total,
+        'detalles': [
+            {
+                'mercancia_codigo': det.mercancia.codigo if det.mercancia else 'N/A',
+                'mercancia_nombre': det.mercancia.nombre if det.mercancia else 'N/A',
+                'cantidad': det.cantidad,
+                'precio': det.precio,
+                'importe': det.importe
+            } for det in factura.detalles
+        ]
+    }
+
+    buffer = io.BytesIO()
+    generate_invoice_pdf(invoice_data, buffer)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f'factura_{factura.codigo}.pdf',
+        mimetype='application/pdf'
+    )
+
+
 # === DEVOLUCIONES ===
 @app.route('/devoluciones', methods=['GET','POST'])
 @login_required
@@ -951,62 +941,7 @@ def devoluciones():
 
             db.session.commit()
 
-            # Generar PDF de la devolución
-            try:
-                devolucion_completa = DevolucionC.query.get(devolucion.id)
-                empresa = Empresa.query.get(1)
-                logo_path = None
-                if empresa and empresa.logo:
-                    logo_path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
-                    if not os.path.exists(logo_path):
-                        logo_path = None
-
-                devolucion_data = {
-                    'codigo': devolucion_completa.codigo,
-                    'fecha': devolucion_completa.fecha.strftime('%Y-%m-%d'),
-                    'tipo': devolucion_completa.tipo,
-                    'comentario': devolucion_completa.comentario,
-                    'subtotal': float(devolucion_completa.subtotal),
-                    'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
-                    'empresa_rnc': empresa.rnc if empresa else '',
-                    'empresa_direccion': empresa.direccionc if empresa else '',
-                    'empresa_logo_path': logo_path,
-                    'itbis': float(devolucion_completa.itbis),
-                    'total': float(devolucion_completa.total),
-                    'detalles': []
-                }
-                if devolucion_completa.tipo == 'venta':
-                    devolucion_data['cliente_nombre'] = devolucion_completa.cliente.nombre if devolucion_completa.cliente else 'N/A'
-                    devolucion_data['cliente_rnc'] = devolucion_completa.cliente.rnc if devolucion_completa.cliente else 'N/A'
-                else:
-                    devolucion_data['proveedor_nombre'] = devolucion_completa.proveedor.nombre if devolucion_completa.proveedor else 'N/A'
-                    devolucion_data['proveedor_rnc'] = devolucion_completa.proveedor.rnc if devolucion_completa.proveedor else 'N/A'
-
-                for det in devolucion_completa.detalles:
-                    doc_origen = det.factura if det.factura else det.compra
-                    devolucion_data['detalles'].append({
-                        'documento_origen_codigo': doc_origen.codigo if doc_origen else 'N/A',
-                        'mercancia_codigo': det.mercancia.codigo,
-                        'mercancia_nombre': det.mercancia.nombre,
-                        'cantidad': det.cantidad,
-                        'precio': float(det.precio),
-                        'importe': float(det.importe)
-                    })
-
-                buffer = io.BytesIO()
-                generate_devolucion_pdf(devolucion_data, buffer)
-                buffer.seek(0)
-
-                pdf_filename = f"devolucion_{devolucion_completa.codigo}.pdf"
-                pdf_path = os.path.join(app.config['PDF_FOLDER'], pdf_filename)
-                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-                with open(pdf_path, 'wb') as f:
-                    f.write(buffer.getvalue())
-
-                flash(f'Devolución {auto_codigo} guardada correctamente. PDF generado: {pdf_filename}', 'success')
-
-            except Exception as e:
-                flash(f'Devolución guardada, pero hubo un error al generar el PDF: {e}', 'warning')
+            flash(f'Devolución {auto_codigo} guardada correctamente.', 'success')
 
         except Exception as e:
             db.session.rollback()
@@ -1015,6 +950,61 @@ def devoluciones():
         return redirect(url_for('devoluciones'))
 
     return render_template('devoluciones.html', page_title='Devoluciones', form_name='devoluciones', current_date=date.today(), origen=origen)
+
+# === RUTA PARA GENERAR PDF DE DEVOLUCION AL VUELO ===
+@app.route('/devolucion/<int:id>/pdf')
+@login_required
+def devolucion_pdf(id):
+    devolucion = DevolucionC.query.get_or_404(id)
+    empresa = Empresa.query.get(1)
+    logo_path = None
+    if empresa and empresa.logo:
+        path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
+        if os.path.exists(path):
+            logo_path = path
+
+    devolucion_data = {
+        'codigo': devolucion.codigo,
+        'fecha': devolucion.fecha.strftime('%Y-%m-%d'),
+        'tipo': devolucion.tipo,
+        'comentario': devolucion.comentario,
+        'subtotal': float(devolucion.subtotal),
+        'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
+        'empresa_rnc': empresa.rnc if empresa else '',
+        'empresa_direccion': empresa.direccionc if empresa else '',
+        'empresa_logo_path': logo_path,
+        'itbis': float(devolucion.itbis),
+        'total': float(devolucion.total),
+        'detalles': []
+    }
+    if devolucion.tipo == 'venta':
+        devolucion_data['cliente_nombre'] = devolucion.cliente.nombre if devolucion.cliente else 'N/A'
+        devolucion_data['cliente_rnc'] = devolucion.cliente.rnc if devolucion.cliente else 'N/A'
+    else:
+        devolucion_data['proveedor_nombre'] = devolucion.proveedor.nombre if devolucion.proveedor else 'N/A'
+        devolucion_data['proveedor_rnc'] = devolucion.proveedor.rnc if devolucion.proveedor else 'N/A'
+
+    for det in devolucion.detalles:
+        doc_origen = det.factura if det.factura else det.compra
+        devolucion_data['detalles'].append({
+            'documento_origen_codigo': doc_origen.codigo if doc_origen else 'N/A',
+            'mercancia_codigo': det.mercancia.codigo,
+            'mercancia_nombre': det.mercancia.nombre,
+            'cantidad': det.cantidad,
+            'precio': float(det.precio),
+            'importe': float(det.importe)
+        })
+
+    buffer = io.BytesIO()
+    generate_devolucion_pdf(devolucion_data, buffer)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f'devolucion_{devolucion.codigo}.pdf',
+        mimetype='application/pdf'
+    )
 
 # === COBROS (CUENTAS POR COBRAR) ===
 @app.route('/cobros', methods=['GET','POST'])
@@ -1099,51 +1089,7 @@ def cobros():
 
             db.session.commit()
 
-            # Generar PDF del recibo de cobro
-            try:
-                empresa = Empresa.query.get(1)
-                cliente_cobro = Cliente.query.get(cobro.cliente_id)
-                logo_path = None
-                if empresa and empresa.logo:
-                    logo_path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
-                    if not os.path.exists(logo_path):
-                        logo_path = None
-
-                cobro_data = {
-                    'codigo': cobro.codigo,
-                    'fecha': cobro.fecha.strftime('%Y-%m-%d'),
-                    'cliente_nombre': cliente_cobro.nombre if cliente_cobro else 'N/A',
-                    'cliente_rnc': cliente_cobro.rnc if cliente_cobro else 'N/A',
-                    'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
-                    'empresa_rnc': empresa.rnc if empresa else '',
-                    'empresa_direccion': empresa.direccionc if empresa else '',
-                    'empresa_logo_path': logo_path,
-                    'forma_pago': cobro.forma_pago,
-                    'comentario': cobro.comentario,
-                    'total': cobro.total,
-                    'detalles': []
-                }
-                for det in cobro.detalles:
-                    cobro_data['detalles'].append({
-                        'factura_codigo': det.factura.codigo,
-                        'aplicado': det.aplicado,
-                        'descuento': det.descuento,
-                        'cargo': det.cargo
-                    })
-
-                buffer = io.BytesIO()
-                generate_cobro_pdf(cobro_data, buffer)
-                buffer.seek(0)
-
-                pdf_filename = f"cobro_{cobro.codigo}.pdf"
-                pdf_path = os.path.join(app.config['PDF_FOLDER'], pdf_filename)
-                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-                with open(pdf_path, 'wb') as f:
-                    f.write(buffer.getvalue())
-
-                flash(f'Cobro guardado correctamente. PDF generado: {pdf_filename}', 'success')
-            except Exception as e:
-                flash(f'Error al generar PDF del cobro: {e}', 'warning')
+            flash(f'Cobro {cobro.codigo} guardado correctamente.', 'success')
 
         except Exception as e:
             db.session.rollback()
@@ -1152,6 +1098,52 @@ def cobros():
         return redirect(url_for('cobros'))
 
     return render_template('cobros.html', page_title='Cobros', form_name='cobros', current_date=date.today())
+
+# === RUTA PARA GENERAR PDF DE COBRO AL VUELO ===
+@app.route('/cobro/<int:id>/pdf')
+@login_required
+def cobro_pdf(id):
+    cobro = CobroC.query.get_or_404(id)
+    empresa = Empresa.query.get(1)
+    cliente = Cliente.query.get(cobro.cliente_id) if cobro.cliente_id else None
+    logo_path = None
+    if empresa and empresa.logo:
+        path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
+        if os.path.exists(path):
+            logo_path = path
+
+    cobro_data = {
+        'codigo': cobro.codigo,
+        'fecha': cobro.fecha.strftime('%Y-%m-%d'),
+        'cliente_nombre': cliente.nombre if cliente else 'N/A',
+        'cliente_rnc': cliente.rnc if cliente else 'N/A',
+        'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
+        'empresa_rnc': empresa.rnc if empresa else '',
+        'empresa_direccion': empresa.direccionc if empresa else '',
+        'empresa_logo_path': logo_path,
+        'forma_pago': cobro.forma_pago,
+        'comentario': cobro.comentario,
+        'total': cobro.total,
+        'detalles': [
+            {
+                'factura_codigo': det.factura.codigo,
+                'aplicado': det.aplicado,
+                'descuento': det.descuento,
+                'cargo': det.cargo
+            } for det in cobro.detalles
+        ]
+    }
+
+    buffer = io.BytesIO()
+    generate_cobro_pdf(cobro_data, buffer)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f'cobro_{cobro.codigo}.pdf',
+        mimetype='application/pdf'
+    )
 
 @app.route('/cobros/reporte_pdf')
 @login_required
@@ -1256,50 +1248,7 @@ def pagos():
 
             db.session.commit()
 
-            try:
-                empresa = Empresa.query.get(1)
-                proveedor_pago = Proveedor.query.get(pago.proveedor_id)
-                logo_path = None
-                if empresa and empresa.logo:
-                    logo_path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
-                    if not os.path.exists(logo_path):
-                        logo_path = None
-
-                pago_data = {
-                    'codigo': pago.codigo,
-                    'fecha': pago.fecha.strftime('%Y-%m-%d'),
-                    'proveedor_nombre': proveedor_pago.nombre if proveedor_pago else 'N/A',
-                    'proveedor_rnc': proveedor_pago.rnc if proveedor_pago else 'N/A',
-                    'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
-                    'empresa_rnc': empresa.rnc if empresa else '',
-                    'empresa_direccion': empresa.direccionc if empresa else '',
-                    'empresa_logo_path': logo_path,
-                    'forma_pago': pago.forma_pago,
-                    'comentario': pago.comentario,
-                    'total': pago.total,
-                    'detalles': []
-                }
-                for det in pago.detalles:
-                    pago_data['detalles'].append({
-                        'compra_codigo': det.compra.codigo,
-                        'aplicado': det.aplicado,
-                        'descuento': det.descuento,
-                        'cargo': det.cargo
-                    })
-
-                buffer = io.BytesIO()
-                generate_pago_pdf(pago_data, buffer)
-                buffer.seek(0)
-
-                pdf_filename = f"pago_{pago.codigo}.pdf"
-                pdf_path = os.path.join(app.config['PDF_FOLDER'], pdf_filename)
-                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-                with open(pdf_path, 'wb') as f:
-                    f.write(buffer.getvalue())
-
-                flash(f'Pago guardado correctamente. PDF generado: {pdf_filename}', 'success')
-            except Exception as e:
-                flash(f'Error al generar PDF del pago: {e}', 'warning')
+            flash(f'Pago {pago.codigo} guardado correctamente.', 'success')
 
         except Exception as e:
             db.session.rollback()
@@ -1308,6 +1257,52 @@ def pagos():
         return redirect(url_for('pagos'))
 
     return render_template('pagos.html', page_title='Pagos a Proveedores', form_name='pagos', current_date=date.today())
+
+# === RUTA PARA GENERAR PDF DE PAGO AL VUELO ===
+@app.route('/pago/<int:id>/pdf')
+@login_required
+def pago_pdf(id):
+    pago = PagoC.query.get_or_404(id)
+    empresa = Empresa.query.get(1)
+    proveedor = Proveedor.query.get(pago.proveedor_id) if pago.proveedor_id else None
+    logo_path = None
+    if empresa and empresa.logo:
+        path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
+        if os.path.exists(path):
+            logo_path = path
+
+    pago_data = {
+        'codigo': pago.codigo,
+        'fecha': pago.fecha.strftime('%Y-%m-%d'),
+        'proveedor_nombre': proveedor.nombre if proveedor else 'N/A',
+        'proveedor_rnc': proveedor.rnc if proveedor else 'N/A',
+        'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
+        'empresa_rnc': empresa.rnc if empresa else '',
+        'empresa_direccion': empresa.direccionc if empresa else '',
+        'empresa_logo_path': logo_path,
+        'forma_pago': pago.forma_pago,
+        'comentario': pago.comentario,
+        'total': pago.total,
+        'detalles': [
+            {
+                'compra_codigo': det.compra.codigo,
+                'aplicado': det.aplicado,
+                'descuento': det.descuento,
+                'cargo': det.cargo
+            } for det in pago.detalles
+        ]
+    }
+
+    buffer = io.BytesIO()
+    generate_pago_pdf(pago_data, buffer)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f'pago_{pago.codigo}.pdf',
+        mimetype='application/pdf'
+    )
 
 @app.route('/pagos/reporte_pdf')
 @login_required
@@ -1594,73 +1589,12 @@ def compras():
                         flash(f"Advertencia: Existencia de '{merc.nombre}' es negativa ({merc.existencia}).", 'warning')
 
             db.session.commit()
-            
-
-            # Generar PDF de la compra
-            try:
-                # Obtener datos completos de la compra para el PDF
-                compra_completa = ComprasC.query.get(compra.id)
-                empresa = Empresa.query.get(1)
-                proveedor_compra = Proveedor.query.get(compra_completa.proveedor_id)
-                logo_path = None
-                if empresa and empresa.logo:
-                    logo_path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
-                    if not os.path.exists(logo_path):
-                        logo_path = None
-
-                compra_data = {
-                    'codigo': compra_completa.codigo,
-                    'fecha': compra_completa.fecha.strftime('%Y-%m-%d'),
-                    'proveedor_nombre': proveedor_compra.nombre if proveedor_compra else 'N/A',
-                    'proveedor_rnc': proveedor_compra.rnc if proveedor_compra else 'N/A',
-                    'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
-                    'empresa_rnc': empresa.rnc if empresa else '',
-                    'empresa_direccion': empresa.direccionc if empresa else '',
-                    'empresa_logo_path': logo_path,
-                    'condicion': compra_completa.condicion,
-                    'comentario': compra_completa.comentario,
-                    'subtotal': compra_completa.subtotal,
-                    'descuento': compra_completa.descuento,
-                    'itbis': compra_completa.itbis,
-                    'total': compra_completa.total,
-                    'detalles': []
-                }
-
-                detalles_compra = ComprasD.query.filter_by(compra_id=compra.id).all()
-                for det in detalles_compra:
-                    mercancia_detalle = Mercancia.query.get(det.mercancia_id)
-                    compra_data['detalles'].append({
-                        'mercancia_codigo': mercancia_detalle.codigo if mercancia_detalle else 'N/A',
-                        'mercancia_nombre': mercancia_detalle.nombre if mercancia_detalle else 'N/A',
-                        'cantidad': det.cantidad,
-                        'precio': det.precio,
-                        'importe': det.importe
-                    })
-
-                # Generar el PDF en memoria
-                buffer = io.BytesIO()
-                generate_compra_pdf(compra_data, buffer)
-                buffer.seek(0)
-
-                pdf_filename = f"compra_{compra.codigo}.pdf"
-                pdf_path = os.path.join(app.root_path, 'static', 'pdfs', pdf_filename)
-
-                # Asegurarse de que el directorio static/pdfs exista
-                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-
-                with open(pdf_path, 'wb') as f:
-                    f.write(buffer.getvalue())
-
-                flash(f'Compra guardada correctamente. PDF generado: {pdf_filename}', 'success')
-                return redirect(url_for('compras'))
-
-            except Exception as e:
-                flash(f'Error al generar PDF de la compra: {e}', 'warning')
-                return redirect(url_for('compras'))
+            flash(f'Compra {compra.codigo} guardada correctamente.', 'success')
 
         except Exception as e:
             db.session.rollback()
             flash(f'Error al guardar compra: {e}', 'danger')
+        
         return redirect(url_for('compras'))
 
     return render_template('compras.html', page_title='Compras', form_name='compras', current_date=date.today())
@@ -1756,6 +1690,56 @@ def api_compra(id):
         'detalles': det_out,
     })
 
+# === RUTA PARA GENERAR PDF DE COMPRA AL VUELO ===
+@app.route('/compra/<int:id>/pdf')
+@login_required
+def compra_pdf(id):
+    compra = ComprasC.query.get_or_404(id)
+    empresa = Empresa.query.get(1)
+    proveedor = Proveedor.query.get(compra.proveedor_id) if compra.proveedor_id else None
+
+    logo_path = None
+    if empresa and empresa.logo:
+        path = os.path.join(app.config['UPLOAD_FOLDER'], empresa.logo)
+        if os.path.exists(path):
+            logo_path = path
+
+    compra_data = {
+        'codigo': compra.codigo,
+        'fecha': compra.fecha.strftime('%Y-%m-%d') if compra.fecha else '',
+        'proveedor_nombre': proveedor.nombre if proveedor else 'N/A',
+        'proveedor_rnc': proveedor.rnc if proveedor else 'N/A',
+        'empresa_nombre': empresa.nombrec if empresa else 'Mi Empresa',
+        'empresa_rnc': empresa.rnc if empresa else '',
+        'empresa_direccion': empresa.direccionc if empresa else '',
+        'empresa_logo_path': logo_path,
+        'condicion': compra.condicion,
+        'comentario': compra.comentario,
+        'subtotal': compra.subtotal,
+        'descuento': compra.descuento,
+        'itbis': compra.itbis,
+        'total': compra.total,
+        'detalles': [
+            {
+                'mercancia_codigo': det.mercancia.codigo if det.mercancia else 'N/A',
+                'mercancia_nombre': det.mercancia.nombre if det.mercancia else 'N/A',
+                'cantidad': det.cantidad,
+                'precio': det.precio,
+                'importe': det.importe
+            } for det in compra.detalles
+        ]
+    }
+
+    buffer = io.BytesIO()
+    generate_compra_pdf(compra_data, buffer)
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=f'compra_{compra.codigo}.pdf',
+        mimetype='application/pdf'
+    )
 
 # === API: Buscar ajustes ===
 @app.route('/api/ajustes')

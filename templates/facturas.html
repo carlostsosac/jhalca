@@ -7,7 +7,7 @@
       <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario</button>
     </li>
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar / Editar</button>
+      <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar</button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="reportes-tab" data-bs-toggle="tab" data-bs-target="#tab-reportes" type="button" role="tab">Reportes</button>
@@ -442,8 +442,8 @@
               <div><strong>${f.codigo || ''}</strong> — ${f.fecha || ''}</div>
               <div class="small text-muted">Cliente: ${f.cliente_nombre || ''} • Subtotal: ${fmt(f.subtotal)} • Total: ${fmt(f.total)}</div>
             </div>
-            <button class="btn btn-sm btn-primary" data-action="editar" data-id="${f.id}">Editar</button>
-          </div>`;
+            <a href="/factura/${f.id}/pdf" class="btn btn-sm btn-info" target="_blank">Descargar PDF</a>
+            </div>`;
         }
         html += '</div>';
         resultadosDiv.innerHTML = html;

@@ -446,8 +446,8 @@
               <div><strong>Código: ${f.codigo || ''}</strong> — Fecha: ${f.fecha || ''}</div>
               <div class="small text-muted">Proveedor: ${f.proveedor_nombre || 'N/A'} • Total: ${fmt(f.total)}</div>
             </div>
-            <a href="/static/pdfs/compra_${f.codigo}.pdf" class="btn btn-sm btn-info" download target="_blank">
-              Descargar PDF
+            <a href="/compra/${f.id}/pdf" class="btn btn-sm btn-info" target="_blank">
+              PDF
             </a>
           </div>`;
         }
@@ -539,48 +539,5 @@
     });
 
   })();
-</script>
-<div class="modal fade" id="pdfDownloadModal" tabindex="-1" aria-labelledby="pdfDownloadModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="pdfDownloadModalLabel">PDF Generado</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p id="pdfModalMessage"></p>
-        <a id="pdfDownloadLink" href="#" class="btn btn-primary" download>Descargar PDF</a>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const flashMessages = document.querySelectorAll('.alert.alert-success');
-    let pdfFilename = null;
-
-    flashMessages.forEach(function(msg) {
-      const text = msg.textContent || msg.innerText;
-      const match = text.match(/PDF generado: (compra_.*\.pdf)/);
-      if (match && match[1]) {
-        pdfFilename = match[1];
-        // Opcional: ocultar el mensaje flash original si se va a usar el modal
-        msg.style.display = 'none';
-      }
-    });
-
-    if (pdfFilename) {
-      const pdfDownloadModal = new bootstrap.Modal(document.getElementById('pdfDownloadModal'));
-      const pdfDownloadLink = document.getElementById('pdfDownloadLink');
-      const pdfModalMessage = document.getElementById('pdfModalMessage');
-      pdfDownloadLink.href = `/static/pdfs/${pdfFilename}`;
-      pdfModalMessage.textContent = `Compra guardada correctamente. ¿Deseas descargar el PDF ${pdfFilename} ahora?`;
-      pdfDownloadModal.show();
-    }
-  });
 </script>
 {% endblock %}
