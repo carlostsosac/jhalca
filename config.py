@@ -20,10 +20,10 @@ SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
 if not SQLALCHEMY_DATABASE_URI:
     # Para hosting en servicios como InfinityFree, es mejor configurar DATABASE_URL
     # en su panel de control. Estos valores predeterminados son para desarrollo local.
-    db_user = os.getenv("DB_USER", "sql10806258") # Reemplaza con tu usuario de BD
-    db_password = os.getenv("DB_PASSWORD", "dWCaxcPvkt") # Reemplaza con tu contraseña de BD
-    db_host = os.getenv("DB_HOST", "sql10.freesqldatabase.com") # Reemplaza con tu host de BD
-    db_name = os.getenv("DB_NAME", "sql10806258") # <-- IMPORTANTE: Reemplaza con el nombre real de tu BD
+    db_user = os.getenv("DB_USER", "root") # Reemplaza con tu usuario de BD
+    db_password = os.getenv("DB_PASSWORD", "771510") # Reemplaza con tu contraseña de BD
+    db_host = os.getenv("DB_HOST", "localhost") # Reemplaza con tu host de BD
+    db_name = os.getenv("DB_NAME", "jhalca") # <-- IMPORTANTE: Reemplaza con el nombre real de tu BD
     
     SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{db_user}:{quote_plus(db_password)}@{db_host}/{db_name}"
 

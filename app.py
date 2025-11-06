@@ -62,6 +62,61 @@ def logout():
     flash('Sesión cerrada.', 'info')
     return redirect(url_for('login'))
 
+# === USUARIOS Y ROLES ===
+@app.route('/usuarios', methods=['GET','POST'])
+@login_required
+@role_required('admin') # Solo los administradores pueden gestionar usuarios
+def usuarios():
+    if request.method == 'POST':
+        user_id = request.form.get('id')
+        username = request.form.get('username')
+        fullname = request.form.get('fullname')
+        password = request.form.get('password')
+        role_ids = request.form.getlist('roles')
+
+        try:
+            if user_id: # Editar usuario
+                user = User.query.get(int(user_id))
+                if not user:
+                    flash('Usuario no encontrado.', 'warning')
+                    return redirect(url_for('usuarios'))
+                
+                user.fullname = fullname
+                # Opcionalmente cambiar contraseña si se proporciona una nueva
+                if password:
+                    user.set_password(password)
+                
+                # Actualizar roles
+                user.roles = Role.query.filter(Role.id.in_([int(r) for r in role_ids])).all()
+
+            else: # Crear usuario nuevo
+                if not username or not password:
+                    flash('El nombre de usuario y la clave son obligatorios para usuarios nuevos.', 'danger')
+                    return redirect(url_for('usuarios'))
+                
+                nuevo_usuario = User(username=username, fullname=fullname)
+                nuevo_usuario.set_password(password)
+                nuevo_usuario.roles = Role.query.filter(Role.id.in_([int(r) for r in role_ids])).all()
+                db.session.add(nuevo_usuario)
+
+            db.session.commit()
+            flash('Usuario guardado correctamente.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar el usuario: {e}', 'danger')
+        
+        return redirect(url_for('usuarios'))
+
+    return render_template('usuarios.html', page_title='Usuarios', form_name='usuarios')
+
+# === API: Obtener todos los roles ===
+@app.route('/api/roles')
+@login_required
+def api_roles():
+    roles = Role.query.order_by(Role.name).all()
+    return jsonify([{'id': r.id, 'name': r.name, 'description': r.description} for r in roles])
+
+
 # Example route for a generic form page (Clientes)
 @app.route('/clientes', methods=['GET','POST'])
 @login_required
@@ -1706,6 +1761,72 @@ def tipos():
             return redirect(url_for('tipos'))
 
     return render_template('tipos.html', page_title='Tipos', form_name='tipos')
+
+# === GASTOS ===
+@app.route('/gastos', methods=['GET','POST'])
+@login_required
+def gastos():
+    if request.method == 'POST':
+        gasto_id = request.form.get('id')
+        codigo = (request.form.get('codigo') or '').strip()
+        fecha_str = request.form.get('fecha')
+        descripcion = request.form.get('descripcion')
+        monto = request.form.get('monto')
+        documento = request.form.get('documento')
+        clase_id = request.form.get('clase_id')
+
+        fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date() if fecha_str else date.today()
+
+        try:
+            # Generar código automático si no se proporciona
+            auto_codigo = codigo
+            if not auto_codigo:
+                db.session.execute(text("INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES ('G', 1, 'gasto');"))
+                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase"), {'clase': 'gasto'}).fetchone()
+                db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': 'gasto'})
+                prefix = row[0] if row else 'G'
+                prev_seq = row[1] if row else 1
+                auto_codigo = f"{prefix}{prev_seq:06d}"
+
+            if gasto_id:
+                gasto = Gasto.query.get(int(gasto_id))
+                if not gasto:
+                    flash('Gasto no encontrado.', 'warning')
+                    return redirect(url_for('gastos'))
+                gasto.codigo = auto_codigo
+                gasto.fecha = fecha
+                gasto.descripcion = descripcion
+                gasto.monto = Decimal(monto) if monto else Decimal('0.0')
+                gasto.documento = documento
+                gasto.clase_id = int(clase_id) if clase_id else None
+            else:
+                nuevo_gasto = Gasto(
+                    codigo=auto_codigo,
+                    fecha=fecha,
+                    descripcion=descripcion,
+                    monto=Decimal(monto) if monto else Decimal('0.0'),
+                    documento=documento,
+                    clase_id=int(clase_id) if clase_id else None
+                )
+                db.session.add(nuevo_gasto)
+            
+            db.session.commit()
+            flash('Gasto guardado correctamente.', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar el gasto: {e}', 'danger')
+        
+        return redirect(url_for('gastos'))
+
+    # Para el método GET, simplemente renderiza la plantilla
+    return render_template('gastos.html', page_title='Gastos', form_name='gastos', current_date=date.today())
+
+# === API: Obtener tipos de gastos para selector ===
+@app.route('/api/tipos/gasto')
+@login_required
+def api_tipos_gasto():
+    tipos = Tipo.query.filter(Tipo.clase == 'gasto').order_by(Tipo.nombre).all()
+    return jsonify([{'id': t.id, 'nombre': t.nombre} for t in tipos])
 
 # === API: Buscar tipos por nombre o clase ===
 @app.route('/api/tipos')
