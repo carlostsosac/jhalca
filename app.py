@@ -1,7 +1,7 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_from_directory, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from config import SQLALCHEMY_DATABASE_URI, SECRET_KEY, driver as cfg_driver, server as cfg_server, database as cfg_database, username as cfg_username, password as cfg_password, PDF_FOLDER, quote_plus
+from config import SQLALCHEMY_DATABASE_URI, SECRET_KEY, PDF_FOLDER, SQLALCHEMY_ENGINE_OPTIONS
 from models import db, User, Cliente, Mercancia, Tipo, Gasto, AjusteC, AjusteD, FacturaC, FacturaD, ComprasC, ComprasD, CobroC, CobroD, PagoC, PagoD, DevolucionC, DevolucionD, Empresa
 from decorators import role_required
 import os
@@ -20,6 +20,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = SQLALCHEMY_DATABASE_URI
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = SQLALCHEMY_ENGINE_OPTIONS
 app.config['PDF_FOLDER'] = PDF_FOLDER
 
 UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
@@ -322,14 +323,10 @@ def ajusteinv():
             auto_codigo = codigo
             if not auto_codigo:
                 # Asegurar que existe la fila de 'ajuste'; si no, crearla
-                try:
-                    # Sintaxis para PostgreSQL
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('AJ', 1, 'ajuste') ON CONFLICT (clase) DO NOTHING;"))
-                except Exception: # Ignorar si ya existe
-                    pass
+                db.session.execute(text("INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES ('AJ', 1, 'ajuste');"))
                 
                 # Bloquear, leer y actualizar la secuencia
-                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': 'ajuste'}).fetchone()
+                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase"), {'clase': 'ajuste'}).fetchone()
                 db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': 'ajuste'})
                 prefix = row[0] if row else 'AJ'
                 prev_seq = row[1] if row else 1
@@ -418,14 +415,10 @@ def facturas():
             # Generar código automático usando secuencias (clase 'factura')
             auto_codigo = codigo
             if not auto_codigo:
-                try:
-                    # Sintaxis para PostgreSQL
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('F', 1, 'factura') ON CONFLICT (clase) DO NOTHING;"))
-                except Exception:
-                    pass
+                db.session.execute(text("INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES ('F', 1, 'factura');"))
 
                 # Bloquear, leer y actualizar la secuencia
-                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': 'factura'}).fetchone()
+                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase"), {'clase': 'factura'}).fetchone()
                 db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': 'factura'})
                 prefix = row[0] if row else 'F'
                 prev_seq = row[1] if row else 1
@@ -707,13 +700,9 @@ def devoluciones():
             clase_secuencia = 'devolucion_venta' if tipo == 'venta' else 'devolucion_compra'
             prefix_default = 'DV' if tipo == 'venta' else 'DC'
             
-            try:
-                # Sintaxis para PostgreSQL
-                db.session.execute(text(f"INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('{prefix_default}', 1, '{clase_secuencia}') ON CONFLICT (clase) DO NOTHING;"))
-            except Exception:
-                pass
+            db.session.execute(text(f"INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES ('{prefix_default}', 1, '{clase_secuencia}');"))
             
-            row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': clase_secuencia}).fetchone()
+            row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase"), {'clase': clase_secuencia}).fetchone()
             db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': clase_secuencia})
             prefix = row[0] if row else prefix_default
             prev_seq = row[1] if row else 1
@@ -877,11 +866,8 @@ def cobros():
             auto_codigo = codigo
             if not auto_codigo:
                 # Usar una secuencia para 'cobro'
-                try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('RC', 1, 'cobro') ON CONFLICT (clase) DO NOTHING;"))
-                except Exception:
-                    pass
-                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': 'cobro'}).fetchone()
+                db.session.execute(text("INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES ('RC', 1, 'cobro');"))
+                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase"), {'clase': 'cobro'}).fetchone()
                 db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': 'cobro'})
                 prefix = row[0] if row else 'RC'
                 prev_seq = row[1] if row else 1
@@ -1039,12 +1025,8 @@ def pagos():
         try:
             auto_codigo = codigo
             if not auto_codigo:
-                try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('PA', 1, 'pago') ON CONFLICT (clase) DO NOTHING;"))
-                except Exception:
-                    pass
-
-                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': 'pago'}).fetchone()
+                db.session.execute(text("INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES ('PA', 1, 'pago');"))
+                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase"), {'clase': 'pago'}).fetchone()
                 db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': 'pago'})
                 prefix = row[0] if row else 'PA'
                 prev_seq = row[1] if row else 1
@@ -1329,12 +1311,8 @@ def compras():
             # Generar código automático usando secuencias (clase 'compra')
             auto_codigo = codigo
             if not auto_codigo:
-                try:
-                    db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('CM', 1, 'compra') ON CONFLICT (clase) DO NOTHING;"))
-                except Exception:
-                    pass
-
-                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': 'compra'}).fetchone()
+                db.session.execute(text("INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES ('CM', 1, 'compra');"))
+                row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase"), {'clase': 'compra'}).fetchone()
                 db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': 'compra'})
                 prefix = (row[0] if row else 'CM')
                 prev_seq = (row[1] if row else 1)
@@ -1876,7 +1854,7 @@ def crear_tablas():
             {'codigo': 'G', 'secuencia': 1, 'clase': 'gasto'}
         ]
         for s in secuencias_iniciales:
-            db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES (:codigo, :secuencia, :clase) ON CONFLICT (clase) DO NOTHING;"), s)
+            db.session.execute(text("INSERT IGNORE INTO secuencias (codigo, secuencia, clase) VALUES (:codigo, :secuencia, :clase);"), s)
         
         # Sembrar datos iniciales en la tabla 'empresa' si está vacía
         if db.session.query(Empresa).count() == 0:
@@ -1936,324 +1914,4 @@ def configuracion():
         'configuracion.html',
         page_title='Configuración',
         form_name='configuracion',
-        driver=cfg_driver,
-        server=cfg_server,
-        database=cfg_database,
-        username=cfg_username,
-        password=cfg_password,
     )
-
-@app.route('/usuarios', methods=['GET','POST'])
-@login_required
-def usuarios():
-    if request.method == 'POST':
-        usr_id = request.form.get('id')
-        username = request.form.get('username')
-        fullname = request.form.get('fullname')
-        photo_url = request.form.get('photo_url')
-        password = request.form.get('password')
-        
-        if usr_id:
-            try:
-                u = User.query.get(int(usr_id))
-                if not u:
-                    flash('Usuario no encontrado.', 'warning')
-                    return redirect(url_for('usuarios'))
-                # Verificar colisión de username si cambió
-                if username and username != u.username:
-                    if User.query.filter_by(username=username).first():
-                        flash('Nombre de usuario ya existe.', 'danger')
-                        return redirect(url_for('usuarios'))
-                    u.username = username
-                u.fullname = fullname
-                u.photo_url = photo_url
-                if password:
-                    u.set_password(password)
-                db.session.commit()
-                flash('Usuario actualizado correctamente.', 'success')
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Error al actualizar usuario: {e}', 'danger')
-            return redirect(url_for('usuarios'))
-        else:
-            try:
-                if not username:
-                    flash('Usuario es requerido.', 'warning')
-                    return redirect(url_for('usuarios'))
-                if User.query.filter_by(username=username).first():
-                    flash('Nombre de usuario ya existe.', 'danger')
-                    return redirect(url_for('usuarios'))
-                nuevo = User(username=username, fullname=fullname, photo_url=photo_url)
-                if password:
-                    nuevo.set_password(password)
-                else:
-                    # Permitir creación con clave vacía (no recomendado, pero según scaffold)
-                    nuevo.password_hash = ''
-                db.session.add(nuevo)
-                db.session.commit()
-                flash('Usuario guardado correctamente.', 'success')
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Error al guardar usuario: {e}', 'danger')
-            return redirect(url_for('usuarios'))
-    return render_template('usuarios.html', page_title='Usuarios', form_name='usuarios')
-
-# === API: Buscar usuarios por username o nombre ===
-@app.route('/api/usuarios')
-@login_required
-def api_usuarios():
-    q = (request.args.get('q') or '').strip()
-    query = User.query
-    if q:
-        like = f"%{q}%"
-        query = query.filter((User.username.ilike(like)) | (User.fullname.ilike(like)))
-    usuarios = query.order_by(User.username).limit(50).all()
-    return jsonify([
-        {
-            'id': u.id,
-            'username': u.username,
-            'fullname': u.fullname,
-            'photo_url': u.photo_url,
-        } for u in usuarios
-    ])
-
-# === API: Obtener un usuario por id ===
-@app.route('/api/usuarios/<int:id>')
-@login_required
-def api_usuario(id):
-    u = User.query.get_or_404(id)
-    return jsonify({
-        'id': u.id,
-        'username': u.username,
-        'fullname': u.fullname,
-        'photo_url': u.photo_url,
-    })
-
-# === API: Obtener tipos de gasto (soporta 'gasto' y 'general') ===
-@app.route('/api/tipos/gasto')
-@login_required
-def api_tipos_gasto():
-    tipos = Tipo.query.filter(Tipo.clase.in_(['gasto','general'])).order_by(Tipo.nombre).all()
-    return jsonify([
-        {
-            'id': t.id,
-            'nombre': t.nombre,
-        } for t in tipos
-    ])
-
-# === GASTOS ===
-@app.route('/gastos', methods=['GET','POST'])
-@login_required
-def gastos():
-    if request.method == 'POST':
-        gasto_id = request.form.get('id')
-        codigo = request.form.get('codigo')
-        fecha_str = request.form.get('fecha')
-        descripcion = request.form.get('descripcion')
-        monto = request.form.get('monto')
-        documento = request.form.get('documento')
-        clase_id = request.form.get('clase_id')
-
-        # Parse fecha
-        fecha = None
-        try:
-            if fecha_str:
-                fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
-        except Exception:
-            fecha = None
-
-        if gasto_id:
-            try:
-                g = Gasto.query.get(int(gasto_id))
-                if not g:
-                    flash('Gasto no encontrado.', 'warning')
-                    return redirect(url_for('gastos'))
-                g.codigo = codigo
-                g.fecha = fecha
-                g.descripcion = descripcion
-                g.monto = float(monto) if monto else 0
-                g.documento = documento
-                g.clase_id = int(clase_id) if clase_id else None
-                db.session.commit()
-                flash('Gasto actualizado correctamente.', 'success')
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Error al actualizar gasto: {e}', 'danger')
-            return redirect(url_for('gastos'))
-        else:
-            try:
-                # Generar código automático usando la tabla 'secuencias' para clase 'gasto'
-                auto_codigo = (codigo or '').strip()
-                if not auto_codigo:
-                    try:
-                        db.session.execute(text("INSERT INTO secuencias (codigo, secuencia, clase) VALUES ('G', 1, 'gasto') ON CONFLICT (clase) DO NOTHING;"))
-                    except Exception:
-                        pass
-
-                    row = db.session.execute(text("SELECT codigo, secuencia FROM secuencias WHERE clase = :clase FOR UPDATE"), {'clase': 'gasto'}).fetchone()
-                    db.session.execute(text("UPDATE secuencias SET secuencia = secuencia + 1 WHERE clase = :clase"), {'clase': 'gasto'})
-                    prefix = row[0] if row else 'G'
-                    prev_seq = row[1] if row else 1
-                    auto_codigo = f"{prefix}{prev_seq:06d}"
-
-                nuevo = Gasto(
-                    codigo=auto_codigo,
-                    fecha=fecha,
-                    descripcion=descripcion,
-                    monto=float(monto) if monto else 0,
-                    documento=documento,
-                    clase_id=int(clase_id) if clase_id else None
-                )
-                db.session.add(nuevo)
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Error al guardar gasto: {e}', 'danger')
-            return redirect(url_for('gastos'))
-
-    return render_template('gastos.html', page_title='Gastos', form_name='gastos')
-
-# === API: Buscar gastos ===
-@app.route('/api/gastos')
-@login_required
-def api_gastos():
-    q = (request.args.get('q') or '').strip()
-    query = Gasto.query
-    if q:
-        like = f"%{q}%"
-        query = query.filter((Gasto.descripcion.ilike(like)) | (Gasto.codigo.ilike(like)))
-    gastos = query.order_by(Gasto.fecha.desc(), Gasto.codigo).limit(50).all()
-    return jsonify([
-        {
-            'id': g.id,
-            'codigo': g.codigo,
-            'fecha': g.fecha.isoformat() if g.fecha else None,
-            'descripcion': g.descripcion,
-            'monto': float(g.monto) if g.monto is not None else 0,
-            'documento': g.documento,
-            'clase_id': g.clase_id,
-            'clase_nombre': g.clase.nombre if g.clase else None,
-        } for g in gastos
-    ])
-
-# === API: Obtener un gasto por id ===
-@app.route('/api/gastos/<int:id>')
-@login_required
-def api_gasto(id):
-    g = Gasto.query.get_or_404(id)
-    return jsonify({
-        'id': g.id,
-        'codigo': g.codigo,
-        'fecha': g.fecha.isoformat() if g.fecha else None,
-        'descripcion': g.descripcion,
-        'monto': float(g.monto) if g.monto is not None else 0,
-        'documento': g.documento,
-        'clase_id': g.clase_id,
-        'clase_nombre': g.clase.nombre if g.clase else None,
-    })
-
-@app.route('/api/gastos/por_fecha')
-@login_required
-def api_gastos_por_fecha():
-    desde = request.args.get('desde')
-    hasta = request.args.get('hasta')
-    d = None
-    h = None
-    try:
-        if desde:
-            d = datetime.strptime(desde, '%Y-%m-%d').date()
-        if hasta:
-            h = datetime.strptime(hasta, '%Y-%m-%d').date()
-    except Exception:
-        d = None
-        h = None
-    query = Gasto.query
-    if d:
-        query = query.filter(Gasto.fecha >= d)
-    if h:
-        query = query.filter(Gasto.fecha <= h)
-    gastos = query.order_by(Gasto.fecha.asc(), Gasto.codigo.asc()).all()
-    result = []
-    for g in gastos:
-        result.append({
-            'id': g.id,
-            'codigo': g.codigo,
-            'fecha': g.fecha.isoformat() if g.fecha else None,
-            'descripcion': g.descripcion,
-            'monto': float(g.monto) if g.monto is not None else None,
-            'documento': g.documento,
-            'clase': getattr(g.clase, 'nombre', None) if hasattr(g, 'clase') else None,
-        })
-    return jsonify(result)
-
-@app.route('/gastos/reporte_pdf')
-@login_required
-def gastos_reporte_pdf():
-    desde = request.args.get('desde')
-    hasta = request.args.get('hasta')
-    d = None
-    h = None
-    try:
-        if desde:
-            d = datetime.strptime(desde, '%Y-%m-%d').date()
-        if hasta:
-            h = datetime.strptime(hasta, '%Y-%m-%d').date()
-    except Exception:
-        d = None
-        h = None
-
-    query = Gasto.query
-    if d:
-        query = query.filter(Gasto.fecha >= d)
-    if h:
-        query = query.filter(Gasto.fecha <= h)
-    gastos = query.order_by(Gasto.fecha.asc(), Gasto.codigo.asc()).all()
-
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    elements = []
-
-    title = Paragraph('Reporte de Gastos', styles['Title'])
-    elements.append(title)
-    rango_text = f"Rango: {desde or '—'} a {hasta or '—'}"
-    elements.append(Paragraph(rango_text, styles['Normal']))
-    elements.append(Spacer(1, 12))
-
-    data = [['Código', 'Fecha', 'Descripción', 'Monto', 'Documento', 'Clase']]
-    total = 0.0
-    for g in gastos:
-        fecha_str = g.fecha.strftime('%d/%m/%Y') if g.fecha else ''
-        monto_val = float(g.monto) if g.monto is not None else 0.0
-        total += monto_val
-        data.append([
-            g.codigo or '',
-            fecha_str,
-            g.descripcion or '',
-            f"{monto_val:,.2f}",
-            g.documento or '',
-            getattr(g.clase, 'nombre', '') if hasattr(g, 'clase') else ''
-        ])
-
-    table = Table(data, repeatRows=1)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.black),
-        ('ALIGN', (3,1), (3,-1), 'RIGHT'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.gray),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('BOTTOMPADDING', (0,0), (-1,0), 8),
-    ]))
-    elements.append(table)
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(f"Total: {total:,.2f}", styles['Heading4']))
-
-    doc.build(elements)
-    buffer.seek(0)
-    return send_file(buffer, as_attachment=True, download_name='gastos_reporte.pdf', mimetype='application/pdf')
-
-if __name__ == '__main__':
-    # Este bloque es solo para desarrollo local.
-    # En producción, se usará un servidor WSGI como Gunicorn.
-    # El modo debug se deshabilita para producción.
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
