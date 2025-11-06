@@ -39,6 +39,7 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 }
 
 PDF_FOLDER = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'pdfs')
+UPLOAD_FOLDER = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static', 'uploads')
 
 if __name__ == '__main__':
     # This block will only run when the script is executed directly

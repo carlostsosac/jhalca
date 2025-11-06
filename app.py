@@ -1,9 +1,9 @@
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_from_directory, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from config import SQLALCHEMY_DATABASE_URI, SECRET_KEY, PDF_FOLDER, SQLALCHEMY_ENGINE_OPTIONS
-from models import db, User, Cliente, Mercancia, Tipo, Gasto, AjusteC, AjusteD, FacturaC, FacturaD, ComprasC, ComprasD, CobroC, CobroD, PagoC, PagoD, DevolucionC, DevolucionD, Empresa
-from decorators import role_required
+from config import SQLALCHEMY_DATABASE_URI, SECRET_KEY, PDF_FOLDER, SQLALCHEMY_ENGINE_OPTIONS, UPLOAD_FOLDER
+from models import db, User, Role, Permission, Cliente, Mercancia, Tipo, Gasto, AjusteC, AjusteD, FacturaC, FacturaD, ComprasC, ComprasD, CobroC, CobroD, PagoC, PagoD, DevolucionC, DevolucionD, Empresa
+from decorators import role_required, permission_required
 import os
 from io import BytesIO
 from datetime import datetime, date
@@ -22,8 +22,6 @@ app.config['SECRET_KEY'] = SECRET_KEY
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = SQLALCHEMY_ENGINE_OPTIONS
 app.config['PDF_FOLDER'] = PDF_FOLDER
-
-UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 db.init_app(app)
@@ -65,7 +63,7 @@ def logout():
 # === USUARIOS Y ROLES ===
 @app.route('/usuarios', methods=['GET','POST'])
 @login_required
-@role_required('admin') # Solo los administradores pueden gestionar usuarios
+@permission_required('acceso_usuarios')
 def usuarios():
     if request.method == 'POST':
         user_id = request.form.get('id')
@@ -107,7 +105,40 @@ def usuarios():
         
         return redirect(url_for('usuarios'))
 
-    return render_template('usuarios.html', page_title='Usuarios', form_name='usuarios')
+    all_roles = Role.query.order_by(Role.name).all()
+    return render_template('usuarios.html', page_title='Usuarios', form_name='usuarios', all_roles=all_roles)
+
+@app.route('/api/usuarios/<int:id>')
+@login_required
+@role_required('admin')
+def api_usuario(id):
+    user = User.query.get_or_404(id)
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'fullname': user.fullname,
+        'photo_url': user.photo_url,
+        'roles': [role.id for role in user.roles]
+    })
+
+# === API: Buscar usuarios ===
+@app.route('/api/usuarios')
+@login_required
+@role_required('admin')
+def api_usuarios():
+    q = (request.args.get('q') or '').strip()
+    query = User.query
+    if q:
+        like_pattern = f"%{q}%"
+        query = query.filter(or_(
+            User.username.ilike(like_pattern),
+            User.fullname.ilike(like_pattern)
+        ))
+    users = query.order_by(User.username).limit(50).all()
+    return jsonify([
+        {'id': u.id, 'username': u.username, 'fullname': u.fullname}
+        for u in users
+    ])
 
 # === API: Obtener todos los roles ===
 @app.route('/api/roles')
@@ -116,10 +147,67 @@ def api_roles():
     roles = Role.query.order_by(Role.name).all()
     return jsonify([{'id': r.id, 'name': r.name, 'description': r.description} for r in roles])
 
+# === GESTIÓN DE ROLES ===
+@app.route('/roles', methods=['GET', 'POST'])
+@login_required
+@permission_required('acceso_roles')
+def roles():
+    if request.method == 'POST':
+        role_id = request.form.get('id')
+        name = request.form.get('name')
+        description = request.form.get('description')
+        permission_ids = request.form.getlist('permissions')
+
+        if not name:
+            flash('El nombre del rol es obligatorio.', 'danger')
+            return redirect(url_for('roles'))
+
+        try:
+            if role_id:  # Editar rol
+                role = Role.query.get(int(role_id))
+                if not role:
+                    flash('Rol no encontrado.', 'warning')
+                    return redirect(url_for('roles'))
+                role.name = name
+                role.description = description
+                role.permissions = Permission.query.filter(Permission.id.in_([int(p) for p in permission_ids])).all()
+                flash('Rol actualizado correctamente.', 'success')
+            else:  # Crear rol
+                nuevo_rol = Role(name=name, description=description)
+                db.session.add(nuevo_rol)
+                nuevo_rol.permissions = Permission.query.filter(Permission.id.in_([int(p) for p in permission_ids])).all()
+                flash('Rol creado correctamente.', 'success')
+            
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar el rol: {e}', 'danger')
+        
+        return redirect(url_for('roles'))
+
+    all_permissions = Permission.query.order_by(Permission.name).all()
+    return render_template('roles.html', page_title='Gestión de Roles', form_name='roles', all_permissions=all_permissions)
+
+@app.route('/api/roles/<int:id>', methods=['GET', 'DELETE'])
+@login_required
+@role_required('admin')
+def api_rol(id):
+    role = Role.query.get_or_404(id)
+    if request.method == 'DELETE':
+        db.session.delete(role)
+        db.session.commit()
+        return jsonify({'message': 'Rol eliminado correctamente.'}), 200
+    return jsonify({
+        'id': role.id,
+        'name': role.name,
+        'description': role.description,
+        'permissions': [p.id for p in role.permissions]
+    })
 
 # Example route for a generic form page (Clientes)
 @app.route('/clientes', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_clientes')
 def clientes():
     if request.method == 'POST':
         cli_id = request.form.get('id')
@@ -240,6 +328,7 @@ def api_cliente(id):
 # Example route for proveedores
 @app.route('/proveedores', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_proveedores')
 def proveedores():
     if request.method == 'POST':
         prov_id = request.form.get('id')
@@ -291,6 +380,7 @@ def proveedores():
 # === MERCANCÍAS ===
 @app.route('/mercancias', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_mercancias')
 def mercancias():
     if request.method == 'POST':
         merc_id = request.form.get('id')
@@ -347,6 +437,7 @@ def mercancias():
 # === AJUSTE DE INVENTARIO ===
 @app.route('/ajusteinv', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_ajustes_inv')
 def ajusteinv():
     if request.method == 'POST':
         ajuste_id = request.form.get('id')
@@ -441,6 +532,7 @@ def ajusteinv():
 # === FACTURAS ===
 @app.route('/facturas', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_facturas')
 def facturas():
     if request.method == 'POST':
         fac_id = request.form.get('id')
@@ -743,6 +835,7 @@ def api_factura(id):
 # === DEVOLUCIONES ===
 @app.route('/devoluciones', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_devoluciones')
 def devoluciones():
     origen = request.args.get('origen', 'venta') # Por defecto 'venta'
 
@@ -899,6 +992,7 @@ def devoluciones():
 # === COBROS (CUENTAS POR COBRAR) ===
 @app.route('/cobros', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_cobros')
 def cobros():
     if request.method == 'POST':
         cobro_id = request.form.get('id')
@@ -1060,6 +1154,7 @@ def cobros_reporte_pdf():
 # === PAGOS (CUENTAS POR PAGAR) ===
 @app.route('/pagos', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_pagos')
 def pagos():
     if request.method == 'POST':
         pago_id = request.form.get('id')
@@ -1337,6 +1432,7 @@ def api_reporte_compras_pendientes():
 # === COMPRAS ===
 @app.route('/compras', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_compras')
 def compras():
     if request.method == 'POST':
         com_id = request.form.get('id')
@@ -1729,6 +1825,7 @@ def api_mercancia(id):
 # === TIPOS ===
 @app.route('/tipos', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_tipos')
 def tipos():
     if request.method == 'POST':
         tipo_id = request.form.get('id')
@@ -1765,6 +1862,7 @@ def tipos():
 # === GASTOS ===
 @app.route('/gastos', methods=['GET','POST'])
 @login_required
+@permission_required('acceso_gastos')
 def gastos():
     if request.method == 'POST':
         gasto_id = request.form.get('id')
@@ -2015,6 +2113,7 @@ def crear_tablas():
 # === DATOS DE LA EMPRESA ===
 @app.route('/empresa', methods=['GET', 'POST'])
 @login_required
+@permission_required('acceso_empresa')
 def datos_empresa():
     # Siempre trabajaremos con la empresa de ID=1
     empresa = Empresa.query.get_or_404(1)

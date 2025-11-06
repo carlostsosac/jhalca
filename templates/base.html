@@ -69,13 +69,15 @@
           <a class="nav-link" href="#">Caja Chica</a>
         </div>
 
-
+        {% if current_user.is_authenticated and current_user.has_role('admin') %}
         <a class="nav-link" data-bs-toggle="collapse" href="#sistemaMenu" role="button"><span class="icon">⚙️</span><span class="label">SISTEMA</span></a>
         <div class="collapse submenu" id="sistemaMenu">
           <a class="nav-link" href="{{ url_for('usuarios') }}">Usuarios</a>
+          <a class="nav-link" href="{{ url_for('roles') }}">Roles</a>
           <a class="nav-link" href="{{ url_for('configuracion') }}">Configuraciones</a>
           <a class="nav-link" href="{{ url_for('datos_empresa') }}">Empresa</a>
         </div>
+        {% endif %}
       </nav>
     </div>
 

@@ -1,5 +1,5 @@
 from app import app
-from models import db, Empresa, User, Role
+from models import db, Empresa, User, Role, Permission
 from sqlalchemy import text, inspect
 
 if __name__ == "__main__":
@@ -50,6 +50,32 @@ if __name__ == "__main__":
                         nuevo_rol = Role(name=role_name, description=role_desc)
                         db.session.add(nuevo_rol)
                         print(f"Rol '{role_name}' creado.")
+                db.session.commit()
+            
+            # Sembrar permisos iniciales si no existen
+            if inspector.has_table('permissions'):
+                print("Verificando permisos iniciales...")
+                permisos_a_crear = {
+                    'acceso_usuarios': 'Acceso al formulario de Usuarios',
+                    'acceso_roles': 'Acceso al formulario de Roles',
+                    'acceso_clientes': 'Acceso al formulario de Clientes',
+                    'acceso_proveedores': 'Acceso al formulario de Proveedores',
+                    'acceso_mercancias': 'Acceso al formulario de Mercancías',
+                    'acceso_tipos': 'Acceso al formulario de Tipos',
+                    'acceso_facturas': 'Acceso al formulario de Facturas',
+                    'acceso_compras': 'Acceso al formulario de Compras',
+                    'acceso_cobros': 'Acceso al formulario de Cobros',
+                    'acceso_pagos': 'Acceso al formulario de Pagos',
+                    'acceso_devoluciones': 'Acceso al formulario de Devoluciones',
+                    'acceso_ajustes_inv': 'Acceso al formulario de Ajustes de Inventario',
+                    'acceso_gastos': 'Acceso al formulario de Gastos',
+                    'acceso_empresa': 'Acceso al formulario de Datos de Empresa',
+                    'acceso_reportes_ventas': 'Permite ver los reportes de ventas',
+                }
+                for perm_name, perm_desc in permisos_a_crear.items():
+                    if not Permission.query.filter_by(name=perm_name).first():
+                        db.session.add(Permission(name=perm_name, description=perm_desc))
+                        print(f"Permiso '{perm_name}' creado.")
                 db.session.commit()
 
             # Asignar todos los roles al usuario con ID 1

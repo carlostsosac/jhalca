@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs" id="tabs-{{ form_name }}" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#tab-form" type="button">Formulario</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="buscar-tab" data-bs-toggle="tab" data-bs-target="#tab-buscar" type="button">Buscar / Editar</button>
+  </li>
+</ul>
+
+<div class="tab-content mt-3">
+  <div class="tab-pane fade show active" id="tab-form">
+    <form method="post" id="role-form">
+      <input type="hidden" name="id" id="role-id">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="role-name" class="form-label">Nombre del Rol</label>
+          <input class="form-control" name="name" id="role-name" required placeholder="Ej: admin, ventas, contador">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label for="role-description" class="form-label">Descripción</label>
+          <input class="form-control" name="description" id="role-description" placeholder="Ej: Permisos totales de administrador">
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col-12">
+          <label class="form-label">Permisos del Rol</label>
+          <div class="d-flex flex-wrap gap-3 border p-3 rounded">
+            {% if all_permissions %}
+              {% for perm in all_permissions %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="permissions" value="{{ perm.id }}" id="perm-{{ perm.id }}">
+                <label class="form-check-label" for="perm-{{ perm.id }}" title="{{ perm.description }}">{{ perm.name }}</label>
+              </div>
+              {% endfor %}
+            {% else %}
+              <small class="text-muted">No hay permisos definidos en el sistema.</small>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-success">Guardar Rol</button>
+      <button type="button" class="btn btn-outline-secondary ms-2" id="limpiar-form">Nuevo</button>
+    </form>
+  </div>
+
+  <div class="tab-pane fade" id="tab-buscar">
+    <p>A continuación se listan todos los roles del sistema.</p>
+    <div id="buscar-resultados">
+      <!-- resultados via fetch / ajax -->
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const resultadosDiv = document.getElementById('buscar-resultados');
+  const buscarTab = document.getElementById('buscar-tab');
+
+  async function buscarRoles() {
+    resultadosDiv.innerHTML = '<div class="text-center">Cargando roles...</div>';
+    try {
+      const res = await fetch(`/api/roles`);
+      if (!res.ok) throw new Error('Error al buscar roles');
+      const data = await res.json();
+
+      if (data.length === 0) {
+        resultadosDiv.innerHTML = '<div class="alert alert-info">No hay roles definidos.</div>';
+        return;
+      }
+
+      let html = '<div class="list-group">';
+      for (const r of data) {
+        html += `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <div><strong>${r.name}</strong></div>
+            <div class="small text-muted">${r.description || 'Sin descripción'}</div>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-primary me-2" data-action="editar" data-id="${r.id}">Editar</button>
+            <button class="btn btn-sm btn-danger" data-action="eliminar" data-id="${r.id}" data-name="${r.name}">Eliminar</button>
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+      resultadosDiv.innerHTML = html;
+    } catch (err) {
+      resultadosDiv.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+    }
+  }
+
+  // Cargar roles cuando se muestra la pestaña de búsqueda
+  buscarTab.addEventListener('shown.bs.tab', buscarRoles);
+
+  // Cargar al inicio por si el usuario empieza en esa pestaña
+  if (document.querySelector('#tab-buscar.active')) {
+    buscarRoles();
+  }
+
+  resultadosDiv.addEventListener('click', async function(e) {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+
+    if (action === 'editar') {
+      try {
+        const res = await fetch(`/api/roles/${id}`);
+        if (!res.ok) throw new Error('No se pudo cargar el rol');
+        const r = await res.json();
+        
+        document.getElementById('role-id').value = r.id || '';
+        document.getElementById('role-name').value = r.name || '';
+        document.getElementById('role-description').value = r.description || '';
+
+        // Limpiar y marcar los checkboxes de permisos
+        document.querySelectorAll('input[name="permissions"]').forEach(chk => {
+          chk.checked = false;
+          if (r.permissions && r.permissions.includes(parseInt(chk.value))) {
+            chk.checked = true;
+          }
+        });
+        
+        const tabTrigger = document.getElementById('form-tab');
+        new bootstrap.Tab(tabTrigger).show();
+      } catch (err) {
+        alert('Error al cargar el rol: ' + err.message);
+      }
+    } else if (action === 'eliminar') {
+      const roleName = btn.dataset.name;
+      if (confirm(`¿Está seguro de que desea eliminar el rol "${roleName}"? Esta acción no se puede deshacer.`)) {
+        try {
+          const res = await fetch(`/api/roles/${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('No se pudo eliminar el rol.');
+          
+          // Recargar la lista de roles
+          buscarRoles();
+        } catch (err) {
+          alert('Error al eliminar el rol: ' + err.message);
+        }
+      }
+    }
+  });
+
+  // Botón "Nuevo" para limpiar y volver a modo creación
+  const limpiarBtn = document.getElementById('limpiar-form');
+  limpiarBtn.addEventListener('click', function() {
+    document.getElementById('role-id').value = '';
+    document.getElementById('role-form').reset();
+    document.querySelectorAll('input[name="permissions"]').forEach(chk => {
+      chk.checked = false;
+    });
+    document.getElementById('role-name').focus();
+  });
+});
+</script>
+{% endblock %}
